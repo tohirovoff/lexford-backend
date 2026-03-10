@@ -117,7 +117,9 @@ export class CoinTransactionsService {
   // Foydalanuvchi bo‘yicha tranzaksiyalarni olish (faqat o'ziga tegishli!)
   async findByUserId(user_id: number) {
     const transactions = await this.coinTransactionModel.findAll({
-      where: { user_id }, // <-- Faqat user_id bo'yicha! [Op.or] o'chirildi!
+      where: {
+        [Op.or]: [{ user_id }, { created_by: user_id }],
+      },
       include: this.getIncludes(),
       order: [['createdAt', 'DESC']],
     });
