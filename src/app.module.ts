@@ -34,11 +34,7 @@ import { Attendance } from './tables/attendance/attendance.model';
 
     SequelizeModule.forRoot({
       dialect: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      database: 'lexford',
-      username: 'postgres',
-      password: '123456',
+      uri: process.env.DATABASE_URL,
       autoLoadModels: true,
       synchronize: true, // development uchun, productionda false qiling!
       sync: { alter: true }, // Mavjud ma'lumotlarni saqlagan holda strukturani yangilash
@@ -61,25 +57,7 @@ import { Attendance } from './tables/attendance/attendance.model';
       serveRoot: '/uploads', // /static emas, /uploads yaxshiroq
     }),
 
-    UserModule,
-
-    ClassesModule,
-
-    AuctionsModule,
-
-    ActionItemsModule,
-
-    BidsModule,
-
-    PenaltiesModule,
-
-    AuctionLogsModule,
-
-    CoinTransactionsModule,
-
-    CoinBlocksModule,
-
-    AttendanceModule,
+    UserModule,ClassesModule,AuctionsModule,ActionItemsModule,BidsModule,PenaltiesModule,AuctionLogsModule,CoinTransactionsModule,CoinBlocksModule,AttendanceModule,
   ],
 })
 export class AppModule {}
