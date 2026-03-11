@@ -369,49 +369,77 @@ export class AttendancesService {
 
   // O'quvchi statistikasini olish (GET /attendance/stats/student/:student_id)
   async getStudentAttendanceStats(student_id: number) {
-    // Kelgan kunlar
-    const presentAttendances = await this.attendanceModel.findAll({
-      attributes: ['date'],
-      where: {
-        present_student_ids: {
-          [Op.contains]: [student_id],
-        },
-      },
+    // 1. O'quvchini aniqlash
+    const user = await this.userModel.findByPk(student_id);
+    
+    if (!user || !user.class_id) {
+      return {
+        student_id,
+        total_days_present: 0,
+        total_days_attended: 0,
+        total_days_late: 0,
+        total_days_absent: 0,
+        coins_from_attendance: 0,
+        total_coins: 0,
+        recent_attendances: [],
+        recent_late_days: [],
+        recent_absent_days: [],
+      };
+    }
+
+    // 2. Sinf bo'yicha barcha davomatlarni olish
+    const classAttendances = await this.attendanceModel.findAll({
+      attributes: ['date', 'present_student_ids', 'late_student_ids'],
+      where: { class_id: user.class_id },
       order: [['date', 'DESC']],
       raw: true,
     });
 
-    // Kechikkan kunlar
-    const lateAttendances = await this.attendanceModel.findAll({
-      attributes: ['date'],
-      where: {
-        late_student_ids: {
-          [Op.contains]: [student_id],
-        },
-      },
-      order: [['date', 'DESC']],
-      raw: true,
+    const presentDays: string[] = [];
+    const lateDays: string[] = [];
+    const absentDays: string[] = [];
+    const sId = Number(student_id);
+
+    classAttendances.forEach((att: any) => {
+      // Hafta kunini tekshiramiz (0 = Yakshanba, 6 = Shanba)
+      const dateObj = new Date(att.date);
+      const day = dateObj.getDay();
+      
+      // Shanba va yakshanba kunlari hisoblanmaslik
+      if (day === 0 || day === 6) return;
+      
+      const presents = att.present_student_ids || [];
+      const lates = att.late_student_ids || [];
+
+      const isPresent = presents.map(Number).includes(sId);
+      const isLate = lates.map(Number).includes(sId);
+
+      if (isPresent) {
+        presentDays.push(att.date);
+      } else if (isLate) {
+        lateDays.push(att.date);
+      } else {
+        // Ikkalasida ham bo'lmasa ko'rsatkich "Kelmagan" (Absent) bo'ladi
+        absentDays.push(att.date); 
+      }
     });
 
-    const totalDaysPresent = presentAttendances.length;
-    const totalDaysLate = lateAttendances.length;
-    const coinsFromAttendance = totalDaysPresent * 5; // Faqat kelganlar uchun
-    const totalBalance =
-      await this.coinTransactionsService.getUserBalance(student_id);
+    const totalDaysPresent = presentDays.length;
+    const totalDaysLate = lateDays.length;
+    const coinsFromAttendance = totalDaysPresent * 5; 
+    const totalBalance = await this.coinTransactionsService.getUserBalance(student_id);
 
     return {
       student_id,
       total_days_present: totalDaysPresent,
-      total_days_attended: totalDaysPresent, // Frontend uchun eski nomni saqlab qolamiz
+      total_days_attended: totalDaysPresent, // API qat'iyligini saqlash uchun
       total_days_late: totalDaysLate,
+      total_days_absent: absentDays.length,
       coins_from_attendance: coinsFromAttendance,
       total_coins: totalBalance,
-      recent_attendances: presentAttendances
-        .slice(0, 10)
-        .map((row: any) => row.date),
-      recent_late_days: lateAttendances
-        .slice(0, 10)
-        .map((row: any) => row.date),
+      recent_attendances: presentDays,
+      recent_late_days: lateDays,
+      recent_absent_days: absentDays,
     };
   }
 
