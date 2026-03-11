@@ -152,9 +152,14 @@ export class UserService {
         'id',
         ['username', 'username'], // majburiy alias
         ['fullname', 'fullname'], // majburiy alias
-        ['class_name', 'class_name'],
         ['coins', 'coins'],
         ['profile_picture', 'profile_picture'],
+        [
+          this.userModel.sequelize!.literal(
+            `(SELECT name FROM classes WHERE classes.id = "User".class_id LIMIT 1)`,
+          ),
+          'class_name',
+        ],
         [
           this.userModel.sequelize!.literal(
             `(SELECT COALESCE(SUM(blocked_amount), 0) 
