@@ -103,6 +103,7 @@ export class ClassesService {
           model: User,
           as: 'students',
           where: { role: 'student' },
+          required: false, // LEFT JOIN — o'quvchilarsiz sinflar ham chiqishi uchun
           attributes: [
             'id',
             'username',
@@ -138,6 +139,7 @@ export class ClassesService {
           model: User,
           as: 'students',
           where: { role: 'student' },
+          required: false,
           attributes: [
             'id',
             'username',
