@@ -156,7 +156,7 @@ export class UserService {
         ['profile_picture', 'profile_picture'],
         [
           this.userModel.sequelize!.literal(
-            `(SELECT name FROM classes WHERE classes.id = "User".class_id LIMIT 1)`,
+            `COALESCE((SELECT name FROM classes WHERE classes.id = "User".class_id LIMIT 1), "User".class_name)`,
           ),
           'class_name',
         ],
