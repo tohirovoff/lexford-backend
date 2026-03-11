@@ -67,9 +67,7 @@ export class UserController {
     const users = await this.userService.findAll();
     return users.map((user) => {
       const { password, ...userWithoutPassword } = user.get({ plain: true });
-      if (!userWithoutPassword.profile_picture) {
-        userWithoutPassword.profile_picture = '/uploads/default-avatar.png';
-      }
+      // Let frontend handle the fallback icon
       return userWithoutPassword;
     });
   }
@@ -80,9 +78,7 @@ export class UserController {
   async getMe(@Req() req: any) {
     const user = await this.userService.getMe(req.user.id);
     const { password: _, ...userWithoutPassword } = user.get({ plain: true });
-    if (!userWithoutPassword.profile_picture) {
-      userWithoutPassword.profile_picture = '/uploads/default-avatar.png';
-    }
+    // Let frontend handle the fallback icon
     return userWithoutPassword;
   }
 
@@ -107,9 +103,7 @@ export class UserController {
     // Parolni javobdan olib tashlash (xavfsizlik uchun)
     const { password, ...userWithoutPassword } = user.get({ plain: true });
 
-    if (!userWithoutPassword.profile_picture) {
-      userWithoutPassword.profile_picture = '/uploads/default-avatar.png';
-    }
+    // Let frontend handle the fallback icon
 
     return userWithoutPassword;
   }

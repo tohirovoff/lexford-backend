@@ -54,10 +54,15 @@ export class User extends Model<User> {
 
   @Column({
     type: DataType.STRING,
-    allowNull: false,
-    defaultValue: '/uploads/default-avatar.png',
+    allowNull: true,
   })
-  profile_picture!: string;
+  profile_picture?: string | null;
+
+  @Column({
+    type: DataType.TEXT,
+    allowNull: true,
+  })
+  bio?: string | null;
 
   @Column({
     type: DataType.STRING,

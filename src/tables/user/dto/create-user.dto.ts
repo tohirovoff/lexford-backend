@@ -30,6 +30,11 @@ export class CreateUserDto {
   @IsString()
   profile_picture?: string;
 
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+
   // Faqat student uchun kerak bo‘lishi mumkin, lekin hozircha ixtiyoriy qoldiramiz
   @IsOptional()
   @IsString()
