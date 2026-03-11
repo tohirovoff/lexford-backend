@@ -98,6 +98,7 @@ export class ClassesService {
           model: User,
           as: 'teacher',
           attributes: ['id', 'username', 'fullname', 'role'],
+          required: false,
         },
         {
           model: User,
@@ -115,8 +116,8 @@ export class ClassesService {
         {
           model: Attendance,
           as: 'attendances',
-          limit: 10,
           order: [['date', 'DESC']],
+          required: false,
         },
       ],
       order: [
@@ -134,6 +135,7 @@ export class ClassesService {
           model: User,
           as: 'teacher',
           attributes: ['id', 'username', 'fullname'],
+          required: false,
         },
         {
           model: User,
@@ -152,6 +154,7 @@ export class ClassesService {
           model: Attendance,
           as: 'attendances',
           order: [['date', 'DESC']],
+          required: false,
         },
       ],
     });
@@ -285,6 +288,7 @@ export class ClassesService {
           model: User,
           as: 'teacher',
           attributes: ['fullname'],
+          required: false,
         },
         {
           model: User,
