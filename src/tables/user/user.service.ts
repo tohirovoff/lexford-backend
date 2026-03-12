@@ -113,17 +113,33 @@ export class UserService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
-    const [updatedRowsCount] = await this.userModel.update(updateUserDto, {
+    // Faqat ruxsat etilgan maydonlarni yangilash (password, role, coins kabi maydonlarni o'zgartirmaslik)
+    const allowedFields = ['fullname', 'class_name', 'grade', 'profile_picture', 'bio'];
+    const safeUpdateData: Record<string, any> = {};
+
+    for (const field of allowedFields) {
+      if (updateUserDto[field] !== undefined && updateUserDto[field] !== '') {
+        safeUpdateData[field] = updateUserDto[field];
+      }
+    }
+
+    if (Object.keys(safeUpdateData).length === 0) {
+      throw new BadRequestException('Yangilash uchun hech qanday maʼlumot yuborilmadi');
+    }
+
+    const [updatedRowsCount] = await this.userModel.update(safeUpdateData, {
       where: { id },
     });
 
     if (updatedRowsCount === 0) {
       throw new NotFoundException(
-        `ID si ${id} bo‘lgan foydalanuvchi topilmadi`,
+        `ID si ${id} bo'lgan foydalanuvchi topilmadi`,
       );
     }
 
-    return this.findOne(id);
+    const user = await this.findOne(id);
+    const { password, ...userWithoutPassword } = user.get({ plain: true });
+    return userWithoutPassword;
   }
 
   async remove(id: number) {
