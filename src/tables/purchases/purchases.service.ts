@@ -19,7 +19,10 @@ export class PurchasesService {
   async create(userId: number, createPurchaseDto: CreatePurchaseDto) {
     const item = await this.shopItemModel.findByPk(createPurchaseDto.item_id);
     if (!item) {
-      throw new BadRequestException('Shop item not found');
+      // Kelgan qiymat haqida batafsil ma'lumot beramiz!
+      const idVal = createPurchaseDto.item_id;
+      const typeVal = typeof idVal;
+      throw new BadRequestException(`XATO! Shop item topilmadi. Qidirilgan ID: "${idVal}" (Original type: ${typeVal}).`);
     }
     if (!item.is_active) {
        throw new BadRequestException('Item is not active');
