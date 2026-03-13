@@ -59,8 +59,8 @@ import { Purchase } from './tables/purchases/purchases.model';
     }),
 
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'),
-      serveRoot: '/uploads', // /static emas, /uploads yaxshiroq
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
     }),
 
     UserModule,ClassesModule,AuctionsModule,ActionItemsModule,BidsModule,PenaltiesModule,AuctionLogsModule,CoinTransactionsModule,CoinBlocksModule,AttendanceModule,ShopItemsModule,PurchasesModule,

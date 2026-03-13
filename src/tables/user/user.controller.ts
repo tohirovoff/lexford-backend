@@ -29,7 +29,8 @@ import { RolesGuard } from 'src/common/auth/role.guard';
 import { AuthGuard } from 'src/common/auth/auth.guard'; // sizning guard
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage, memoryStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import * as fs from 'fs';
 import { Express } from 'multer';
 import { AuthService } from 'src/common/auth/auth.service';
 
@@ -126,7 +127,13 @@ export class UserController {
   @UseInterceptors(
     FileInterceptor('profile_picture', {
       storage: diskStorage({
-        destination: './uploads',
+        destination: (req, file, cb) => {
+          const uploadPath = join(process.cwd(), 'uploads');
+          if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
         filename: (req, file, cb) => {
           const uniqueSuffix =
             Date.now() + '-' + Math.round(Math.random() * 1e9);

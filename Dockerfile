@@ -60,5 +60,10 @@ COPY --from=builder /app/package*.json ./
 
 COPY --from=builder /app/dist ./dist
 
+# Uploads papkasini yaratish — rasmlar shu yerga saqlanadi
+RUN mkdir -p /usr/src/app/uploads
+
+# Docker-ga bu papka persistent ekanligini bildirish
+VOLUME /usr/src/app/uploads
 
 CMD ["npm", "run", "start:prod"]
