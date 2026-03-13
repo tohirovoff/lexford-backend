@@ -28,7 +28,7 @@ export class ShopItem extends Model<ShopItem> {
   item_type?: string;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.TEXT,
     allowNull: true,
   })
   image_url?: string;

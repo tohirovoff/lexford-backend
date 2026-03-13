@@ -8,19 +8,17 @@ async function bootstrap() {
 
   // === CORS ni yoqish – MUHIM! ===
   app.enableCors({
-    origin: 'http://localhost:3001', // Frontend portingiz (Next.js odatda 3001 ga o'tadi)
-    credentials: true, // JWT token yoki cookie ishlatilsa kerak
+    origin: true, // Hamma origindan ruxsat beradi
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
-  // Yoki development uchun oddiyroq variant:
-  // app.enableCors(); // Hamma origindan ruxsat beradi (faqat dev uchun!)
 
   // Validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false, // FormData file upload uchun false bo'lishi kerak
       transform: true,
     }),
   );
