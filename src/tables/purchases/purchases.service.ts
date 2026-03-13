@@ -74,4 +74,21 @@ export class PurchasesService {
       order: [['createdAt', 'DESC']]
     });
   }
+
+  async updateStatus(id: number, status: string) {
+    const purchase = await this.purchaseModel.findByPk(id);
+    if (!purchase) {
+      throw new BadRequestException('Purchase not found');
+    }
+    purchase.status = status;
+    return purchase.save();
+  }
+
+  async remove(id: number) {
+    const purchase = await this.purchaseModel.findByPk(id);
+    if (!purchase) {
+      throw new BadRequestException('Purchase not found');
+    }
+    return purchase.destroy();
+  }
 }

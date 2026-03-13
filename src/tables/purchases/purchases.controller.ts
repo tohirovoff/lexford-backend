@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Req, Patch, Param, Delete } from '@nestjs/common';
 import { PurchasesService } from './purchases.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { AuthGuard } from '../../common/auth/auth.guard';
@@ -25,5 +25,19 @@ export class PurchasesController {
   @Get('all')
   findAll() {
     return this.purchasesService.findAll();
+  }
+
+  @Roles('admin', 'teacher')
+  @UseGuards(RolesGuard)
+  @Patch(':id/status')
+  updateStatus(@Param('id') id: string, @Body('status') status: string) {
+    return this.purchasesService.updateStatus(+id, status);
+  }
+
+  @Roles('admin', 'teacher')
+  @UseGuards(RolesGuard)
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.purchasesService.remove(+id);
   }
 }

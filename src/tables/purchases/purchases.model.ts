@@ -32,4 +32,11 @@ export class Purchase extends Model<Purchase> {
     allowNull: false,
   })
   price_paid!: number;
+
+  @Column({
+    type: DataType.ENUM('pending', 'completed', 'cancelled'),
+    allowNull: false,
+    defaultValue: 'pending',
+  })
+  status!: string;
 }
