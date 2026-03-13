@@ -7,7 +7,7 @@ import { RolesGuard } from '../../common/auth/role.guard';
 import { Roles } from '../../common/auth/role.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import * as fs from 'fs';
 
 @UseGuards(AuthGuard)
@@ -22,7 +22,7 @@ export class ShopItemsController {
     FileInterceptor('image', {
       storage: diskStorage({
         destination: (req, file, cb) => {
-          const uploadPath = './uploads';
+          const uploadPath = join(process.cwd(), 'uploads');
           if (!fs.existsSync(uploadPath)) {
             fs.mkdirSync(uploadPath, { recursive: true });
           }
@@ -68,7 +68,7 @@ export class ShopItemsController {
     FileInterceptor('image', {
       storage: diskStorage({
         destination: (req, file, cb) => {
-          const uploadPath = './uploads';
+          const uploadPath = join(process.cwd(), 'uploads');
           if (!fs.existsSync(uploadPath)) {
             fs.mkdirSync(uploadPath, { recursive: true });
           }

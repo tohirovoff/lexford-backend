@@ -29,9 +29,10 @@ services:
     ports:
       - 9000:3000
     volumes:
-      - ./uploads:/usr/src/app/uploads
+      - uploads_data:/usr/src/app/uploads
     environment:
       DATABASE_URL: postgresql://devuser:devpassword@db:5432/lexford_db
 
 volumes:
   postgres_data:
+  uploads_data:
