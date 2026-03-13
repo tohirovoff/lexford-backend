@@ -125,9 +125,17 @@ export class UserController {
   @Put(':id')
   @UseInterceptors(
     FileInterceptor('profile_picture', {
-      storage: memoryStorage(), // Changed to memoryStorage
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, `user-${uniqueSuffix}${ext}`);
+        },
+      }),
       fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/i)) { // Added webp
+        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
           return cb(
             new BadRequestException('Faqat rasm fayllari ruxsat etilgan!'),
             false,
@@ -155,10 +163,7 @@ export class UserController {
     const updateData: Partial<UpdateUserDto> = { ...updateUserDto };
 
     if (file) {
-      // Rasm bazaga base64 sifatida saqlanadi
-      const base64 = file.buffer.toString('base64');
-      const mimeType = file.mimetype;
-      updateData.profile_picture = `data:${mimeType};base64,${base64}`;
+      updateData.profile_picture = `/uploads/${file.filename}`;
     }
 
     return this.userService.update(targetId, updateData);

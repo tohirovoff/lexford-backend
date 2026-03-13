@@ -6,7 +6,9 @@ import { AuthGuard } from '../../common/auth/auth.guard';
 import { RolesGuard } from '../../common/auth/role.guard';
 import { Roles } from '../../common/auth/role.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import * as fs from 'fs';
 
 @UseGuards(AuthGuard)
 @Controller('shop-items')
@@ -18,16 +20,26 @@ export class ShopItemsController {
   @Post()
   @UseInterceptors(
     FileInterceptor('image', {
-      storage: memoryStorage(),
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads';
+          if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, `shop-${uniqueSuffix}${ext}`);
+        },
+      }),
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     })
   )
   create(@Body() createShopItemDto: CreateShopItemDto, @UploadedFile() file: any) {
     if (file) {
-      // Rasmni base64 formatda bazaga saqlaymiz
-      const base64 = file.buffer.toString('base64');
-      const mimeType = file.mimetype;
-      createShopItemDto.image_url = `data:${mimeType};base64,${base64}`;
+      createShopItemDto.image_url = `/uploads/${file.filename}`;
     }
     return this.shopItemsService.create(createShopItemDto);
   }
@@ -54,16 +66,26 @@ export class ShopItemsController {
   @Patch(':id')
   @UseInterceptors(
     FileInterceptor('image', {
-      storage: memoryStorage(),
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads';
+          if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, `shop-${uniqueSuffix}${ext}`);
+        },
+      }),
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     })
   )
   update(@Param('id') id: string, @Body() updateShopItemDto: UpdateShopItemDto, @UploadedFile() file: any) {
     if (file) {
-      // Rasmni base64 formatda bazaga saqlaymiz
-      const base64 = file.buffer.toString('base64');
-      const mimeType = file.mimetype;
-      updateShopItemDto.image_url = `data:${mimeType};base64,${base64}`;
+      updateShopItemDto.image_url = `/uploads/${file.filename}`;
     }
     return this.shopItemsService.update(+id, updateShopItemDto);
   }
