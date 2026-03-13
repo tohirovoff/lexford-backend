@@ -54,7 +54,7 @@ export class User extends Model<User> {
   coins?: number;
 
   @Column({
-    type: DataType.TEXT,
+    type: DataType.STRING,
     allowNull: true,
   })
   profile_picture?: string | null;
