@@ -17,6 +17,7 @@ import { AuctionLog } from '../auction_logs/auction_logs.model';
 import { Attendance } from '../attendance/attendance.model';
 import { Class } from '../classes/classes.model';
 import { AuctionItems } from '../action-items/auction-items.model';
+import { Purchase } from '../purchases/purchases.model';
 
 @Table({ tableName: 'users' })
 export class User extends Model<User> {
@@ -131,4 +132,7 @@ export class User extends Model<User> {
 
   @HasMany(() => Class, 'teacher_id')
   managedClasses: Class[]; // Teacher qaysi sinflarning rahbari
+
+  @HasMany(() => Purchase)
+  purchases: Purchase[];
 }

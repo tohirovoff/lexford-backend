@@ -24,6 +24,10 @@ import { AuctionLog } from './tables/auction_logs/auction_logs.model';
 import { Class } from './tables/classes/classes.model';
 import { AttendanceModule } from './tables/attendance/attendance.module';
 import { Attendance } from './tables/attendance/attendance.model';
+import { ShopItemsModule } from './tables/shop_items/shop_items.module';
+import { ShopItem } from './tables/shop_items/shop_items.model';
+import { PurchasesModule } from './tables/purchases/purchases.module';
+import { Purchase } from './tables/purchases/purchases.model';
 
 @Module({
   imports: [
@@ -49,6 +53,8 @@ import { Attendance } from './tables/attendance/attendance.model';
         AuctionLog,
         Class,
         Attendance,
+        ShopItem,
+        Purchase,
       ],
     }),
 
@@ -57,7 +63,7 @@ import { Attendance } from './tables/attendance/attendance.model';
       serveRoot: '/uploads', // /static emas, /uploads yaxshiroq
     }),
 
-    UserModule,ClassesModule,AuctionsModule,ActionItemsModule,BidsModule,PenaltiesModule,AuctionLogsModule,CoinTransactionsModule,CoinBlocksModule,AttendanceModule,
+    UserModule,ClassesModule,AuctionsModule,ActionItemsModule,BidsModule,PenaltiesModule,AuctionLogsModule,CoinTransactionsModule,CoinBlocksModule,AttendanceModule,ShopItemsModule,PurchasesModule,
   ],
 })
 export class AppModule {}
