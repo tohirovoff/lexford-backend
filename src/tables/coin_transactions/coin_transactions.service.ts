@@ -40,11 +40,14 @@ export class CoinTransactionsService {
         { transaction: t }
       );
 
-      // User.coins maydonini manual usulda xavfsiz yangilash (increment xatoliklarsiz ishlashi uchun)
+      // User.coins maydonini manual usulda xavfsiz yangilash
+      // getDataValue ishlatamiz chunki public class field Sequelize getter'ini shadow qiladi
       const user = await this.userModel.findByPk(dto.user_id, { transaction: t });
       if (user) {
-        user.coins = (user.coins || 0) + dto.amount; 
+        const currentCoins = Number(user.getDataValue('coins')) || 0;
+        user.setDataValue('coins', currentCoins + dto.amount);
         await user.save({ transaction: t });
+        console.log(`DEBUG coins updated: userId=${dto.user_id}, old=${currentCoins}, change=${dto.amount}, new=${currentCoins + dto.amount}`);
       }
 
       return transaction;

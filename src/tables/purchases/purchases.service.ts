@@ -38,8 +38,8 @@ export class PurchasesService {
       throw new BadRequestException('Ushbu mahsulot zaxirada qolmagan (Tugagan).');
     }
 
-    // 4. Foydalanuvchini topish
-    const user = await this.userModel.findByPk(userId);
+    // 4. Foydalanuvchini topish (raw: true — Sequelize class field shadowing muammosini oldini olish)
+    const user = await this.userModel.findByPk(userId, { raw: true });
     if (!user) {
       throw new BadRequestException('Foydalanuvchi topilmadi.');
     }
@@ -47,15 +47,15 @@ export class PurchasesService {
     // 5. Narx va nomni XAVFSIZ olish
     const itemPrice = Number(item.price_coins);
     const itemName = item.name || 'Nomsiz mahsulot';
+    const userCoins = Number(user.coins) || 0;
 
-    console.log(`DEBUG: itemPrice=${itemPrice}, itemName=${itemName}, userCoins=${user.coins}`);
+    console.log(`DEBUG: itemPrice=${itemPrice}, itemName=${itemName}, userCoins=${userCoins}, userId=${user.id}`);
 
     if (!itemPrice || isNaN(itemPrice) || itemPrice <= 0) {
       throw new BadRequestException(`Mahsulot narxi noto'g'ri: "${item.price_coins}". Iltimos, adminstratorga murojaat qiling.`);
     }
 
     // 6. Yetarli tangalar bormi tekshirish
-    const userCoins = user.coins || 0;
     if (userCoins < itemPrice) {
       throw new BadRequestException(`Tangalaringiz yetarli emas! Sizda ${userCoins} ta, mahsulot narxi esa ${itemPrice} ta.`);
     }
