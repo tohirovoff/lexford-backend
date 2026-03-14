@@ -39,20 +39,32 @@ export class PurchasesService {
     if (!user) {
       throw new BadRequestException('Foydalanuvchi topilmadi.');
     }
+
+    // DEBUG LOG: Mahsulot ma'lumotlarini tekshirish
+    console.log(`DEBUG: Xaridga urinish. UserID: ${userId}, ItemID: ${item.id}`);
+    console.log(`DEBUG: Mahsulot ma'lumotlari: Nom=${item.name}, Narx=${item.price_coins}`);
+
+    // Xavfsizlik tekshiruvi: Agar narx yoki nom yo'q bo'lsa
+    if (item.price_coins === undefined || item.price_coins === null || isNaN(Number(item.price_coins))) {
+       throw new BadRequestException(`XATO! Mahsulot narxi (price_coins) aniqlanmadi yoki noto'g'ri: ${item.price_coins}`);
+    }
+    
+    if (!item.name) {
+       throw new BadRequestException(`XATO! Mahsulot nomi (name) aniqlanmadi.`);
+    }
     
     // Foydalanuvchida bor tangalar yetarlimi
-    // Faqat user.coins ni tekshiramiz, chunki tarix (transactions) oldinroq bo'sh bo'lgan bo'lishi mumkin.
     const userCoins = user.coins || 0;
+    const itemPrice = Number(item.price_coins);
     
-    if (userCoins < item.price_coins) {
-      throw new BadRequestException(`Tangalaringiz yetarli emas! Sizda ${userCoins} ta, mahsulot narxi esa ${item.price_coins} ta.`);
+    if (userCoins < itemPrice) {
+      throw new BadRequestException(`Tangalaringiz yetarli emas! Sizda ${userCoins} ta, mahsulot narxi esa ${itemPrice} ta.`);
     }
 
     // Tarixga xaridni yozib qoldiramiz 
-    // Bu avtomat user_coins ni - (manfiy) narx miqdorida kamaytirishi coinTransactionsService ichida yozilgan!
     await this.coinTransactionsService.create({
       user_id: user.id,
-      amount: -item.price_coins,
+      amount: -itemPrice,
       type: 'purchase', 
       reason: `Do'kondan xarid: ${item.name}`,
       created_by: user.id
