@@ -53,8 +53,9 @@ export class PurchasesService {
     await this.coinTransactionsService.create({
       user_id: user.id,
       amount: -item.price_coins,
-      type: 'purchase', // expense o'rniga aniqroq 'purchase' deyish yaxshiroq
+      type: 'purchase', 
       reason: `Do'kondan xarid: ${item.name}`,
+      created_by: null
     } as any);
 
     // Zaxira bor bo'lsa uni bittaga kamaytiramiz va agar tugasa, nofaol qilamiz

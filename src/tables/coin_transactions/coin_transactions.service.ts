@@ -37,20 +37,21 @@ export class CoinTransactionsService {
     try {
       const transaction = await this.coinTransactionModel.create(
         dto as any,
-        { transaction: t },
+        { transaction: t }
       );
 
-      // User.coins maydonini avtomatik yangilash
-      await this.userModel.increment('coins', {
-        by: dto.amount,
-        where: { id: dto.user_id },
-        transaction: t,
-      });
+      // User.coins maydonini manual usulda xavfsiz yangilash (increment xatoliklarsiz ishlashi uchun)
+      const user = await this.userModel.findByPk(dto.user_id, { transaction: t });
+      if (user) {
+        user.coins = (user.coins || 0) + dto.amount; 
+        await user.save({ transaction: t });
+      }
 
       return transaction;
     } catch (error) {
+      console.error('Tranzaksiya yaratishdagi asil xato:', error);
       throw new HttpException(
-        'Coin tranzaksiyasi yaratishda xatolik yuz berdi',
+        'Coin tranzaksiyasi yaratishda xatolik yuz berdi: ' + (error.message || ''),
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
