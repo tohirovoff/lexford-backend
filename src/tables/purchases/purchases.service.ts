@@ -21,59 +21,62 @@ export class PurchasesService {
   async create(userId: number, createPurchaseDto: CreatePurchaseDto) {
     const item = await this.shopItemModel.findByPk(createPurchaseDto.item_id);
     if (!item) {
-      const idVal = createPurchaseDto.item_id;
-      const typeVal = typeof idVal;
-      throw new BadRequestException(`XATO! Shop item topilmadi. Qidirilgan ID: "${idVal}" (Original type: ${typeVal}).`);
+      throw new BadRequestException(`XATO! Shop item topilmadi. Qidirilgan ID: ${createPurchaseDto.item_id}`);
     }
     
-    if (item.is_active === false) {
-       throw new BadRequestException('Item is not active');
+    // Postgres type bo'yicha ehtiyot bo'lish
+    // is_active boolean 'false' yoki string 'false' bo'lishi mumkin
+    if (item.is_active === false || item.is_active as any === 'false') {
+       throw new BadRequestException('Ushbu mahsulot hozirda sotuvda mavjud emas (Nofaol).');
     }
     
+    // Stock tekshirish (agar null bo'lmasa, demak cheklangan)
     if (item.stock !== null && item.stock !== undefined && item.stock <= 0) {
-      throw new BadRequestException('Item is out of stock');
+      throw new BadRequestException('Ushbu mahsulot zaxirada qolmagan (Tugagan).');
     }
 
     const user = await this.userModel.findByPk(userId);
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new BadRequestException('Foydalanuvchi topilmadi.');
     }
     
-    // Asosiy balansni bazadagi tranzaksiyalar yig'indisidan tekshirish tavsiya etiladi
-    const balance = await this.coinTransactionsService.getUserBalance(user.id);
+    // Foydalanuvchida bor tangalar yetarlimi
+    // Faqat user.coins ni tekshiramiz, chunki tarix (transactions) oldinroq bo'sh bo'lgan bo'lishi mumkin.
+    const userCoins = user.coins || 0;
     
-    if ((user.coins || 0) < item.price_coins || balance < item.price_coins) {
-      throw new BadRequestException('Not enough coins');
+    if (userCoins < item.price_coins) {
+      throw new BadRequestException(`Tangalaringiz yetarli emas! Sizda ${userCoins} ta, mahsulot narxi esa ${item.price_coins} ta.`);
     }
 
-    // Coin tranzaksiya yaratish (Avtomatik user coins ni yangilaydi)
+    // Tarixga xaridni yozib qoldiramiz 
+    // Bu avtomat user_coins ni - (manfiy) narx miqdorida kamaytirishi coinTransactionsService ichida yozilgan!
     await this.coinTransactionsService.create({
       user_id: user.id,
       amount: -item.price_coins,
-      type: 'expense',
-      reason: `Purchased item: ${item.name}`,
+      type: 'purchase', // expense o'rniga aniqroq 'purchase' deyish yaxshiroq
+      reason: `Do'kondan xarid: ${item.name}`,
     } as any);
 
-    // Deduct stock yoki o'chirish
+    // Zaxira bor bo'lsa uni bittaga kamaytiramiz va agar tugasa, nofaol qilamiz
     if (item.stock !== null && item.stock !== undefined && item.stock > 0) {
       item.stock -= 1;
       if (item.stock <= 0) {
-         // Stock tugasa, uni nofaol qilamiz
          item.is_active = false;
       }
       await item.save();
     } else {
-      // Agar stock limitlanmagan bo'lsa (yoki stock column NULL bo'lsa), 
-      // demak u yagona tovar va birdaniga bazadan nofaol qilinadi 
-      // (Purchaselarda foreign key error chiqmasligi uchun o'chirmasdan nofaol qilamiz)
-      item.is_active = false;
-      await item.save();
+      // Yagona (cheksiz ko'rsatilmagan ammo limit ham yo'q holat) - bunday maxsulotni faqat bir marta sotish mumkin bo'lsa,
+      // lekin odatda null = cheksiz degani bo'ladi!
+      // Agar 'stock' maxsus holda o'rnatilmagan bo'lsa (null), u cheksiz bo'ladi va is_active = false qilmasligimiz kerak!
+      // Demak, hech narsa zaxiradan ayirmaymiz.
     }
 
+    // Sotuvni yozib qo'ydik
     const purchase = await this.purchaseModel.create({
       user_id: user.id,
       item_id: item.id,
       price_paid: item.price_coins,
+      status: 'pending' // Hozircha pending, o'qituvchi tasdiqlaydi
     } as any);
 
     return purchase;
