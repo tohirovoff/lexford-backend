@@ -19,77 +19,75 @@ export class PurchasesService {
   ) {}
 
   async create(userId: number, createPurchaseDto: CreatePurchaseDto) {
-    const item = await this.shopItemModel.findByPk(createPurchaseDto.item_id);
+    // 1. Mahsulotni topish
+    const item = await this.shopItemModel.findByPk(createPurchaseDto.item_id, { raw: true });
     if (!item) {
       throw new BadRequestException(`XATO! Shop item topilmadi. Qidirilgan ID: ${createPurchaseDto.item_id}`);
     }
     
-    // Postgres type bo'yicha ehtiyot bo'lish
-    // is_active boolean 'false' yoki string 'false' bo'lishi mumkin
-    if (item.is_active === false || item.is_active as any === 'false') {
+    // DEBUG: Bazadan kelgan ma'lumotlarni konsolga chiqarish
+    console.log('DEBUG raw item:', JSON.stringify(item));
+
+    // 2. Mahsulot faolmi tekshirish  
+    if (item.is_active === false || (item.is_active as any) === 'false') {
        throw new BadRequestException('Ushbu mahsulot hozirda sotuvda mavjud emas (Nofaol).');
     }
     
-    // Stock tekshirish (agar null bo'lmasa, demak cheklangan)
+    // 3. Stock (Zaxira) tekshirish
     if (item.stock !== null && item.stock !== undefined && item.stock <= 0) {
       throw new BadRequestException('Ushbu mahsulot zaxirada qolmagan (Tugagan).');
     }
 
+    // 4. Foydalanuvchini topish
     const user = await this.userModel.findByPk(userId);
     if (!user) {
       throw new BadRequestException('Foydalanuvchi topilmadi.');
     }
 
-    // DEBUG LOG: Mahsulot ma'lumotlarini tekshirish
-    console.log(`DEBUG: Xaridga urinish. UserID: ${userId}, ItemID: ${item.id}`);
-    console.log(`DEBUG: Mahsulot ma'lumotlari: Nom=${item.name}, Narx=${item.price_coins}`);
-
-    // Xavfsizlik tekshiruvi: Agar narx yoki nom yo'q bo'lsa
-    if (item.price_coins === undefined || item.price_coins === null || isNaN(Number(item.price_coins))) {
-       throw new BadRequestException(`XATO! Mahsulot narxi (price_coins) aniqlanmadi yoki noto'g'ri: ${item.price_coins}`);
-    }
-    
-    if (!item.name) {
-       throw new BadRequestException(`XATO! Mahsulot nomi (name) aniqlanmadi.`);
-    }
-    
-    // Foydalanuvchida bor tangalar yetarlimi
-    const userCoins = user.coins || 0;
+    // 5. Narx va nomni XAVFSIZ olish
     const itemPrice = Number(item.price_coins);
-    
+    const itemName = item.name || 'Nomsiz mahsulot';
+
+    console.log(`DEBUG: itemPrice=${itemPrice}, itemName=${itemName}, userCoins=${user.coins}`);
+
+    if (!itemPrice || isNaN(itemPrice) || itemPrice <= 0) {
+      throw new BadRequestException(`Mahsulot narxi noto'g'ri: "${item.price_coins}". Iltimos, adminstratorga murojaat qiling.`);
+    }
+
+    // 6. Yetarli tangalar bormi tekshirish
+    const userCoins = user.coins || 0;
     if (userCoins < itemPrice) {
       throw new BadRequestException(`Tangalaringiz yetarli emas! Sizda ${userCoins} ta, mahsulot narxi esa ${itemPrice} ta.`);
     }
 
-    // Tarixga xaridni yozib qoldiramiz 
+    // 7. Coin tranzaksiyasi yaratish (tangalarni ayirish)
     await this.coinTransactionsService.create({
       user_id: user.id,
       amount: -itemPrice,
       type: 'purchase', 
-      reason: `Do'kondan xarid: ${item.name}`,
+      reason: `Do'kondan xarid: ${itemName}`,
       created_by: user.id
     } as any);
 
-    // Zaxira bor bo'lsa uni bittaga kamaytiramiz va agar tugasa, nofaol qilamiz
+    // 8. Zaxirani kamaytirish (agar cheklangan bo'lsa)
     if (item.stock !== null && item.stock !== undefined && item.stock > 0) {
-      item.stock -= 1;
-      if (item.stock <= 0) {
-         item.is_active = false;
+      // raw: true ishlatilgani uchun endi model instance kerak
+      const itemInstance = await this.shopItemModel.findByPk(item.id);
+      if (itemInstance) {
+        itemInstance.stock = (itemInstance.stock || 0) - 1;
+        if (itemInstance.stock <= 0) {
+          itemInstance.is_active = false;
+        }
+        await itemInstance.save();
       }
-      await item.save();
-    } else {
-      // Yagona (cheksiz ko'rsatilmagan ammo limit ham yo'q holat) - bunday maxsulotni faqat bir marta sotish mumkin bo'lsa,
-      // lekin odatda null = cheksiz degani bo'ladi!
-      // Agar 'stock' maxsus holda o'rnatilmagan bo'lsa (null), u cheksiz bo'ladi va is_active = false qilmasligimiz kerak!
-      // Demak, hech narsa zaxiradan ayirmaymiz.
     }
 
-    // Sotuvni yozib qo'ydik
+    // 9. Xaridni qayd etish
     const purchase = await this.purchaseModel.create({
       user_id: user.id,
       item_id: item.id,
-      price_paid: item.price_coins,
-      status: 'pending' // Hozircha pending, o'qituvchi tasdiqlaydi
+      price_paid: itemPrice,
+      status: 'pending'
     } as any);
 
     return purchase;
