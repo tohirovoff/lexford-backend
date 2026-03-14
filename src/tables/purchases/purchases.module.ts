@@ -5,9 +5,13 @@ import { PurchasesService } from './purchases.service';
 import { Purchase } from './purchases.model';
 import { User } from '../user/user.model';
 import { ShopItem } from '../shop_items/shop_items.model';
+import { CoinTransactionsModule } from '../coin_transactions/coin_transactions.module';
 
 @Module({
-  imports: [SequelizeModule.forFeature([Purchase, User, ShopItem])],
+  imports: [
+    SequelizeModule.forFeature([Purchase, User, ShopItem]),
+    CoinTransactionsModule,
+  ],
   controllers: [PurchasesController],
   providers: [PurchasesService],
   exports: [PurchasesService],

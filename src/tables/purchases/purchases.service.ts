@@ -4,6 +4,7 @@ import { Purchase } from './purchases.model';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { User } from '../user/user.model';
 import { ShopItem } from '../shop_items/shop_items.model';
+import { CoinTransactionsService } from '../coin_transactions/coin_transactions.service';
 
 @Injectable()
 export class PurchasesService {
@@ -14,19 +15,21 @@ export class PurchasesService {
     private userModel: typeof User,
     @InjectModel(ShopItem)
     private shopItemModel: typeof ShopItem,
+    private coinTransactionsService: CoinTransactionsService,
   ) {}
 
   async create(userId: number, createPurchaseDto: CreatePurchaseDto) {
     const item = await this.shopItemModel.findByPk(createPurchaseDto.item_id);
     if (!item) {
-      // Kelgan qiymat haqida batafsil ma'lumot beramiz!
       const idVal = createPurchaseDto.item_id;
       const typeVal = typeof idVal;
       throw new BadRequestException(`XATO! Shop item topilmadi. Qidirilgan ID: "${idVal}" (Original type: ${typeVal}).`);
     }
-    if (!item.is_active) {
+    
+    if (item.is_active === false) {
        throw new BadRequestException('Item is not active');
     }
+    
     if (item.stock !== null && item.stock !== undefined && item.stock <= 0) {
       throw new BadRequestException('Item is out of stock');
     }
@@ -35,17 +38,35 @@ export class PurchasesService {
     if (!user) {
       throw new BadRequestException('User not found');
     }
-    if ((user.coins || 0) < item.price_coins) {
+    
+    // Asosiy balansni bazadagi tranzaksiyalar yig'indisidan tekshirish tavsiya etiladi
+    const balance = await this.coinTransactionsService.getUserBalance(user.id);
+    
+    if ((user.coins || 0) < item.price_coins || balance < item.price_coins) {
       throw new BadRequestException('Not enough coins');
     }
 
-    // Deduct coins
-    user.coins = (user.coins || 0) - item.price_coins;
-    await user.save();
+    // Coin tranzaksiya yaratish (Avtomatik user coins ni yangilaydi)
+    await this.coinTransactionsService.create({
+      user_id: user.id,
+      amount: -item.price_coins,
+      type: 'expense',
+      reason: `Purchased item: ${item.name}`,
+    } as any);
 
-    // Deduct stock
-    if (item.stock !== null && item.stock !== undefined) {
+    // Deduct stock yoki o'chirish
+    if (item.stock !== null && item.stock !== undefined && item.stock > 0) {
       item.stock -= 1;
+      if (item.stock <= 0) {
+         // Stock tugasa, uni nofaol qilamiz
+         item.is_active = false;
+      }
+      await item.save();
+    } else {
+      // Agar stock limitlanmagan bo'lsa (yoki stock column NULL bo'lsa), 
+      // demak u yagona tovar va birdaniga bazadan nofaol qilinadi 
+      // (Purchaselarda foreign key error chiqmasligi uchun o'chirmasdan nofaol qilamiz)
+      item.is_active = false;
       await item.save();
     }
 
