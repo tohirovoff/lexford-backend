@@ -55,7 +55,7 @@ export class PurchasesService {
       amount: -item.price_coins,
       type: 'purchase', 
       reason: `Do'kondan xarid: ${item.name}`,
-      created_by: null
+      created_by: user.id
     } as any);
 
     // Zaxira bor bo'lsa uni bittaga kamaytiramiz va agar tugasa, nofaol qilamiz
