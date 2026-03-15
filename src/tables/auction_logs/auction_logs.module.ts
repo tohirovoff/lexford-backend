@@ -7,7 +7,7 @@ import { Auction } from '../auctions/auctions.model';
 import { User } from '../user/user.model';
 
 @Module({
-  imports: [SequelizeModule.forFeature([AuctionLog]), Auction, User],
+  imports: [SequelizeModule.forFeature([AuctionLog, Auction, User])],
   controllers: [AuctionLogsController],
   providers: [AuctionLogsService],
 })

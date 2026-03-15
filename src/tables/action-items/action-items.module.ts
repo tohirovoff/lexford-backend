@@ -10,11 +10,7 @@ import { CoinBlock } from '../coin_blocks/coin_blocks.model';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([AuctionItems]),
-    Bids,
-    Auction,
-    User,
-    CoinBlock,
+    SequelizeModule.forFeature([AuctionItems, Bids, Auction, User, CoinBlock]),
   ],
   controllers: [ActionItemsController],
   providers: [ActionItemsService],

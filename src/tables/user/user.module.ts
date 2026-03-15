@@ -16,16 +16,18 @@ import { Class } from '../classes/classes.model';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([User]),
-    Penalties,
+    SequelizeModule.forFeature([
+      User, 
+      Penalties, 
+      Bids, 
+      AuctionItems, 
+      CoinTransactions, 
+      CoinBlock, 
+      AuctionLog, 
+      Class
+    ]),
     SharingModule,
     AuthModule,
-    Bids,
-    AuctionItems,
-    CoinTransactions,
-    CoinBlock,
-    AuctionLog,
-    Class,
   ],
   controllers: [UserController],
   providers: [UserService, AuthService],

@@ -7,45 +7,45 @@ export class ShopItem extends Model<ShopItem> {
     type: DataType.STRING,
     allowNull: false,
   })
-  name!: string;
+  declare name: string;
 
   @Column({
     type: DataType.TEXT,
     allowNull: true,
   })
-  description?: string;
+  declare description: string;
 
   @Column({
     type: DataType.INTEGER,
     allowNull: false,
   })
-  price_coins!: number;
+  declare price_coins: number;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  item_type?: string;
+  declare item_type: string;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  image_url?: string;
+  declare image_url: string;
 
   @Column({
     type: DataType.INTEGER,
     allowNull: true,
     defaultValue: null,
   })
-  stock?: number | null;
+  declare stock: number | null;
 
   @Column({
     type: DataType.BOOLEAN,
     allowNull: false,
     defaultValue: true,
   })
-  is_active!: boolean;
+  declare is_active: boolean;
 
   @HasMany(() => Purchase, {
     foreignKey: 'item_id',

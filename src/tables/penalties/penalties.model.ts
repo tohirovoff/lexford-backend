@@ -16,34 +16,34 @@ export class Penalties extends Model<Penalties> {
     type: DataType.INTEGER,
     allowNull: false,
   })
-  user_id: number;
+  declare user_id: number;
 
   @ForeignKey(() => Auction)
   @Column({
     type: DataType.INTEGER,
     allowNull: false,
   })
-  auction_id: number;
+  declare auction_id: number;
 
   @Column({
     type: DataType.INTEGER,
     allowNull: false,
   })
-  coin_penalty: number;
+  declare coin_penalty: number;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
     defaultValue: 'Intizomsizlik',
   })
-  reason?: string;
+  declare reason: string;
 
   @ForeignKey(() => User)
   @Column({
     type: DataType.INTEGER,
     allowNull: false,
   })
-  issued_by: number;
+  declare issued_by: number;
 
   // Jarima olgan o'quvchi
   @BelongsTo(() => User, {

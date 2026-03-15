@@ -9,34 +9,34 @@ export class Purchase extends Model<Purchase> {
     type: DataType.INTEGER,
     allowNull: false,
   })
-  user_id!: number;
+  declare user_id: number;
 
   @BelongsTo(() => User)
-  user: User;
+  declare user: User;
 
   @ForeignKey(() => ShopItem)
   @Column({
     type: DataType.INTEGER,
     allowNull: false,
   })
-  item_id!: number;
+  declare item_id: number;
 
   @BelongsTo(() => ShopItem, {
     foreignKey: 'item_id',
     as: 'item',
   })
-  item: ShopItem;
+  declare item: ShopItem;
 
   @Column({
     type: DataType.INTEGER,
     allowNull: false,
   })
-  price_paid!: number;
+  declare price_paid: number;
 
   @Column({
     type: DataType.ENUM('pending', 'completed', 'cancelled'),
     allowNull: false,
     defaultValue: 'pending',
   })
-  status!: string;
+  declare status: string;
 }

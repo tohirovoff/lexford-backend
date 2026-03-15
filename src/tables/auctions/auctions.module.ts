@@ -9,10 +9,7 @@ import { AuctionItems } from '../action-items/auction-items.model';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Auction]),
-    Penalties,
-    AuctionLog,
-    AuctionItems,
+    SequelizeModule.forFeature([Auction, Penalties, AuctionLog, AuctionItems]),
   ],
   controllers: [AuctionsController],
   providers: [AuctionsService],

@@ -26,66 +26,63 @@ export class User extends Model<User> {
     allowNull: false,
     unique: true,
   })
-  username!: string;
+  declare username: string;
 
   @Column({
     type: DataType.STRING,
     allowNull: false,
   })
-  password!: string;
+  declare password: string;
 
   @Column({
     type: DataType.STRING,
     allowNull: false,
   })
-  fullname!: string;
+  declare fullname: string;
 
   @Column({
     type: DataType.ENUM('teacher', 'admin', 'student'),
     allowNull: false,
   })
-  role!: 'teacher' | 'admin' | 'student';
+  declare role: 'teacher' | 'admin' | 'student';
 
   @Column({
     type: DataType.INTEGER,
     allowNull: true,
     defaultValue: 0,
   })
-  coins?: number;
+  declare coins: number;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  profile_picture?: string | null;
+  declare profile_picture: string | null;
 
   @Column({
     type: DataType.TEXT,
     allowNull: true,
   })
-  bio?: string | null;
+  declare bio: string | null;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  class_name?: string | null;
+  declare class_name: string | null;
 
   @Column({
     type: DataType.STRING,
     allowNull: true,
   })
-  grade?: string | null;
+  declare grade: string | null;
 
-  // Studentlar uchun: qaysi sinfda o'qiydi
-  // Teacherlar uchun: qaysi sinfning rahbari (sinf rahbari)
-  // Adminlar uchun: null
   @ForeignKey(() => Class)
   @Column({
     type: DataType.INTEGER,
-    allowNull: true, // Admin uchun null bo'lishi mumkin
+    allowNull: true,
   })
-  class_id: number | null;
+  declare class_id: number | null;
 
   // User → Class bog'lanishi (BelongsTo)
   @BelongsTo(() => Class)

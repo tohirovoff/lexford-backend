@@ -75,9 +75,6 @@ export class PurchasesService {
       const itemInstance = await this.shopItemModel.findByPk(item.id);
       if (itemInstance) {
         itemInstance.stock = (itemInstance.stock || 0) - 1;
-        if (itemInstance.stock <= 0) {
-          itemInstance.is_active = false;
-        }
         await itemInstance.save();
       }
     }
@@ -114,10 +111,37 @@ export class PurchasesService {
   }
 
   async updateStatus(id: number, status: string) {
-    const purchase = await this.purchaseModel.findByPk(id);
+    const purchase = await this.purchaseModel.findByPk(id, {
+      include: [{ model: ShopItem, as: 'item' }]
+    });
     if (!purchase) {
       throw new BadRequestException('Purchase not found');
     }
+
+    const oldStatus = purchase.status;
+
+    // Agar hozir 'cancelled' bo'lsa va oldin 'cancelled' bo'lmagan bo'lsa - tangalarni qaytarish kerak
+    if (status === 'cancelled' && oldStatus !== 'cancelled') {
+      const itemName = purchase.item?.name || 'Mahsulot';
+      await this.coinTransactionsService.create({
+        user_id: purchase.user_id,
+        amount: purchase.price_paid, // Musbat son - tangalar qaytadi
+        type: 'refund',
+        reason: `Bekor qilingan xarid uchun qaytarildi: ${itemName}`,
+        created_by: purchase.user_id 
+      } as any);
+
+      // Agar bekor bo'lsa, stockni qaytarib qo'shish kerak (agar stock cheklangan bo'lsa)
+      if (purchase.item_id) {
+         const item = await this.shopItemModel.findByPk(purchase.item_id);
+         if (item && item.stock !== null) {
+            item.stock = (item.stock || 0) + 1;
+            item.is_active = true; // Yana sotuvga chiqarish
+            await item.save();
+         }
+      }
+    }
+
     purchase.status = status;
     return purchase.save();
   }
