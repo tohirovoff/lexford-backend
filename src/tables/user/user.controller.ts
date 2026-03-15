@@ -47,6 +47,8 @@ export class UserController {
     return this.authService.register(createUserDto);
   }
 
+  @Roles('admin')
+  @UseGuards(AuthGuard, RolesGuard)
   @Post('create-many')
   async createMany(@Body() createUserDto: CreateUserDto[]) {
     return this.authService.createMany(createUserDto);
