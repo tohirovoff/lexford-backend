@@ -147,4 +147,22 @@ export class AuthService {
       );
     }
   }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    const user = await this.userService.userModel.findByPk(userId);
+    if (!user) {
+      throw new BadRequestException('Foydalanuvchi topilmadi');
+    }
+
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Eski parol noto‘g‘ri');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    return { message: 'Parol muvaffaqiyatli o‘zgartirildi' };
+  }
 }

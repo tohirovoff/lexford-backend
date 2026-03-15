@@ -23,7 +23,8 @@ import {
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { LoginDto } from './dto/login.dto'; // alohida DTO
+import { LoginDto } from './dto/login.dto'; 
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Roles } from 'src/common/auth/role.decorator';
 import { RolesGuard } from 'src/common/auth/role.guard';
 import { AuthGuard } from 'src/common/auth/auth.guard'; // sizning guard
@@ -184,5 +185,15 @@ export class UserController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.userService.remove(Number(id));
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('change-password')
+  async changePassword(@Req() req: any, @Body() changePasswordDto: ChangePasswordDto) {
+    return this.authService.changePassword(
+      req.user.id,
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
   }
 }
