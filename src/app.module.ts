@@ -44,11 +44,7 @@ import { Notification } from './tables/notifications/notification.model';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         dialect: 'postgres',
-        host: configService.get<string>('DB_HOST') || 'localhost',
-        port: parseInt(configService.get<string>('DB_PORT') || '5432', 10),
-        username: configService.get<string>('DB_USER') || 'postgres',
-        password: configService.get<string>('DB_PASSWORD') || 'postgres',
-        database: configService.get<string>('DB_NAME') || 'lexford_db',
+        uri: process.env.DATABASE_URL,
         autoLoadModels: true,
         synchronize: true, // development uchun, productionda false qiling!
         sync: { alter: true }, // Mavjud ma'lumotlarni saqlagan holda strukturani yangilash
