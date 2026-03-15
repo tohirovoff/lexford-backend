@@ -339,4 +339,17 @@ export class UserService {
     const result = await this.getSchoolLeaderboard(1, 10);
     return result.data;
   }
+
+  async updateClass(id: number, classId: number | null) {
+    const user = await this.userModel.findByPk(id);
+    if (!user) {
+      throw new NotFoundException(`Foydalanuvchi topilmadi`);
+    }
+
+    if (user.role !== 'student') {
+      throw new BadRequestException('Faqat o‘quvchilarning sinfini o‘zgartirish mumkin');
+    }
+
+    return await user.update({ class_id: classId });
+  }
 }

@@ -178,6 +178,17 @@ export class UserController {
 
     return this.userService.update(targetId, updateData);
   }
+  
+  @Roles('admin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Patch(':id/class')
+  async updateClass(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('class_id') class_id: any,
+  ) {
+    const classId = class_id === 'none' || class_id === null ? null : Number(class_id);
+    return this.userService.updateClass(id, classId);
+  }
 
   // O‘chirish (faqat admin)
   @Roles('admin')
