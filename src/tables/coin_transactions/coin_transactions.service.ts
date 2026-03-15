@@ -14,6 +14,7 @@ import { CoinTransactions } from './coin_transactions.model';
 import { CreateCoinTransactionDto } from './dto/create-coin_transaction.dto';
 import { UpdateCoinTransactionDto } from './dto/update-coin_transaction.dto';
 import { Transaction } from 'sequelize';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class CoinTransactionsService {
@@ -22,6 +23,7 @@ export class CoinTransactionsService {
     private readonly coinTransactionModel: typeof CoinTransactions,
     @InjectModel(User)
     private readonly userModel: typeof User,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // Har doim ishlatiladigan include — receiver va giver bilan
@@ -40,14 +42,48 @@ export class CoinTransactionsService {
         { transaction: t }
       );
 
-      // User.coins maydonini manual usulda xavfsiz yangilash
-      // getDataValue ishlatamiz chunki public class field Sequelize getter'ini shadow qiladi
+      // Miqdorni aniq butun son (integer) ekanligiga ishonch hosil qilamiz
+      const amount = Math.trunc(Number(dto.amount));
+
+      // User.coins maydonini atomic (xavfsiz) yangilash – race condition va ma'lumot yo'qolishini oldini olish uchun
       const user = await this.userModel.findByPk(dto.user_id, { transaction: t });
       if (user) {
-        const currentCoins = Number(user.getDataValue('coins')) || 0;
-        user.setDataValue('coins', currentCoins + dto.amount);
-        await user.save({ transaction: t });
-        console.log(`DEBUG coins updated: userId=${dto.user_id}, old=${currentCoins}, change=${dto.amount}, new=${currentCoins + dto.amount}`);
+        // Musbat yoki manfiy bo'lishidan qat'i nazar increment ishlatamiz (decrement -X bilan teng)
+        await user.increment('coins', {
+          by: amount,
+          transaction: t,
+        });
+
+        // Yangilangan qiymatni logda ko'rish uchun reload qilamiz
+        await user.reload({ transaction: t });
+        console.log(
+          `DEBUG coins updated: userId=${dto.user_id}, change=${amount}, newBalance=${user.getDataValue('coins')}`,
+        );
+
+        // Xabarnoma yuborish
+        const isPenalty = dto.type === 'penalty' || dto.amount < 0;
+        let title = isPenalty ? 'Jarima' : 'Tangalar qabul qilindi';
+        let message = isPenalty 
+          ? `${Math.abs(dto.amount)} tanga miqdorida jarima qo'llanildi. Sabab: ${dto.reason || 'belgilanmagan'}`
+          : `${dto.amount} ta tanga hisobingizga qo'shildi. Sabab: ${dto.reason || 'belgilanmagan'}`;
+        let type = isPenalty ? 'penalty' : 'reward';
+
+        if (dto.type === 'bid_refund') {
+          title = 'Stavka qaytarildi';
+          message = `Sizning stavkangizdan yuqori stavka qo'yildi. ${dto.amount} ta tanga hisobingizga qaytarildi.`;
+          type = 'auction';
+        } else if (dto.type === 'bid_block') {
+          title = 'Stavka qo\'yildi';
+          message = `${Math.abs(dto.amount)} ta tanga stavka uchun bloklandi.`;
+          type = 'auction';
+        }
+
+        await this.notificationService.create({
+          user_id: dto.user_id,
+          title,
+          message,
+          type,
+        });
       }
 
       return transaction;

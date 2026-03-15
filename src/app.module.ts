@@ -30,6 +30,8 @@ import { PurchasesModule } from './tables/purchases/purchases.module';
 import { Purchase } from './tables/purchases/purchases.model';
 import { SchedulesModule } from './tables/schedules/schedules.module';
 import { Schedule } from './tables/schedules/schedules.model';
+import { NotificationModule } from './tables/notifications/notification.module';
+import { Notification } from './tables/notifications/notification.model';
 
 @Module({
   imports: [
@@ -64,6 +66,7 @@ import { Schedule } from './tables/schedules/schedules.model';
           ShopItem,
           Purchase,
           Schedule,
+          Notification,
         ],
       }),
     }),
@@ -73,7 +76,7 @@ import { Schedule } from './tables/schedules/schedules.model';
       serveRoot: '/uploads',
     }),
 
-    UserModule,ClassesModule,AuctionsModule,ActionItemsModule,BidsModule,PenaltiesModule,AuctionLogsModule,CoinTransactionsModule,CoinBlocksModule,AttendanceModule,ShopItemsModule,PurchasesModule,SchedulesModule,
+    UserModule,ClassesModule,AuctionsModule,ActionItemsModule,BidsModule,PenaltiesModule,AuctionLogsModule,CoinTransactionsModule,CoinBlocksModule,AttendanceModule,ShopItemsModule,PurchasesModule,SchedulesModule,NotificationModule,
   ],
 })
 export class AppModule {}

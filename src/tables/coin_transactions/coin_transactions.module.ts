@@ -5,8 +5,10 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { CoinTransactions } from './coin_transactions.model';
 import { User } from '../user/user.model';
 
+import { NotificationModule } from '../notifications/notification.module';
+
 @Module({
-  imports: [SequelizeModule.forFeature([CoinTransactions, User])],
+  imports: [SequelizeModule.forFeature([CoinTransactions, User]), NotificationModule],
   controllers: [CoinTransactionsController],
   providers: [CoinTransactionsService],
   exports: [CoinTransactionsService],
