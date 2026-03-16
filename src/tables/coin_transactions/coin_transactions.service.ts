@@ -37,13 +37,21 @@ export class CoinTransactionsService {
   // Yangi tranzaksiya yaratish
   async create(dto: CreateCoinTransactionDto, t?: Transaction) {
     try {
+      // Miqdorni aniq butun son (integer) ekanligiga ishonch hosil qilamiz
+      const amount = Math.trunc(Number(dto.amount));
+
+      // Maksimal 10 tanga berish cheklovi (faqat reward uchun)
+      if (dto.type === 'reward' && amount > 10) {
+        throw new HttpException(
+          'Maksimal 10 tanga berish mumkin',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       const transaction = await this.coinTransactionModel.create(
         dto as any,
         { transaction: t }
       );
-
-      // Miqdorni aniq butun son (integer) ekanligiga ishonch hosil qilamiz
-      const amount = Math.trunc(Number(dto.amount));
 
       // User.coins maydonini atomic (xavfsiz) yangilash – race condition va ma'lumot yo'qolishini oldini olish uchun
       const user = await this.userModel.findByPk(dto.user_id, { transaction: t });
@@ -63,7 +71,7 @@ export class CoinTransactionsService {
         // Xabarnoma yuborish
         const isPenalty = dto.type === 'penalty' || dto.amount < 0;
         let title = isPenalty ? 'Jarima' : 'Tangalar qabul qilindi';
-        let message = isPenalty 
+        let message = isPenalty
           ? `${Math.abs(dto.amount)} tanga miqdorida jarima qo'llanildi. Sabab: ${dto.reason || 'belgilanmagan'}`
           : `${dto.amount} ta tanga hisobingizga qo'shildi. Sabab: ${dto.reason || 'belgilanmagan'}`;
         let type = isPenalty ? 'penalty' : 'reward';
@@ -90,21 +98,38 @@ export class CoinTransactionsService {
     } catch (error) {
       console.error('Tranzaksiya yaratishdagi asil xato:', error);
       throw new HttpException(
-        'Coin tranzaksiyasi yaratishda xatolik yuz berdi: ' + (error.message || ''),
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        error.message || 'Coin tranzaksiyasi yaratishda xatolik yuz berdi',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
   // Bir nechta tranzaksiya qo'shish (bulk)
   async createMany(dtos: CreateCoinTransactionDto[]) {
-    try {
-      return await this.coinTransactionModel.bulkCreate(dtos as any);
-    } catch (error) {
-      console.log(error);
+    const sequelize = this.coinTransactionModel.sequelize;
+    if (!sequelize) {
       throw new HttpException(
-        'Bir nechta tranzaksiya qo‘shishda xatolik',
+        'Sequelize instance topilmadi',
         HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    const t = await sequelize.transaction();
+
+    try {
+      const results: any[] = [];
+      for (const dto of dtos) {
+        const result = await this.create(dto, t);
+        results.push(result);
+      }
+      await t.commit();
+      return results;
+    } catch (error) {
+      await t.rollback();
+      console.error('Bulk create error:', error);
+      throw new HttpException(
+        error.message || 'Bir nechta tranzaksiya qo‘shishda xatolik',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
