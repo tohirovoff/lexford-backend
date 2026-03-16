@@ -49,6 +49,7 @@ export class Penalties extends Model<Penalties> {
   @BelongsTo(() => User, {
     foreignKey: 'user_id',
     as: 'receiver',
+    onDelete: 'CASCADE',
   })
   receiver: User;
 
@@ -56,6 +57,7 @@ export class Penalties extends Model<Penalties> {
   @BelongsTo(() => User, {
     foreignKey: 'issued_by',
     as: 'issuer',
+    onDelete: 'CASCADE',
   })
   issuer: User;
 

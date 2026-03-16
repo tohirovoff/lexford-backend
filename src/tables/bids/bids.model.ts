@@ -40,6 +40,6 @@ export class Bids extends Model<Bids> {
   @BelongsTo(() => AuctionItems)
   auction_item = AuctionItems;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   user: User;
 }

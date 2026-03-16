@@ -40,6 +40,6 @@ export class AuctionLog extends Model<AuctionLog> {
   @BelongsTo(() => Auction)
   auction: Auction;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { foreignKey: 'performed_by', onDelete: 'CASCADE' })
   user: User;
 }

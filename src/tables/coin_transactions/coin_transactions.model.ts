@@ -42,9 +42,9 @@ export class CoinTransactions extends Model<CoinTransactions> {
   })
   created_by: number;
 
-  @BelongsTo(() => User, { foreignKey: 'user_id', as: 'receiver' })
+  @BelongsTo(() => User, { foreignKey: 'user_id', as: 'receiver', onDelete: 'CASCADE' })
   receiver: User;
 
-  @BelongsTo(() => User, { foreignKey: 'created_by', as: 'giver' })
+  @BelongsTo(() => User, { foreignKey: 'created_by', as: 'giver', onDelete: 'CASCADE' })
   giver: User;
 }

@@ -45,7 +45,8 @@ export class Class extends Model<Class> {
   // Sinf rahbari ma'lumotlari (fullname, username va h.k.)
   @BelongsTo(() => User, {
     foreignKey: 'teacher_id',
-    as: 'teacher', // <--- bu qatorni qo'shing!
+    as: 'teacher',
+    onDelete: 'CASCADE',
   })
   teacher: User;
 

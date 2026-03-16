@@ -11,7 +11,7 @@ export class Purchase extends Model<Purchase> {
   })
   declare user_id: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @ForeignKey(() => ShopItem)

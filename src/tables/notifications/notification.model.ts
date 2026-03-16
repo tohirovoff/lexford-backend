@@ -25,7 +25,7 @@ export class Notification extends Model<Notification> {
   })
   declare user_id: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   user: User;
 
   @Column({

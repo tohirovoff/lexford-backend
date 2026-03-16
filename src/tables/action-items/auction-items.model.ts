@@ -78,7 +78,7 @@ export class AuctionItems extends Model<AuctionItems> {
   @HasMany(() => Bids)
   bids: Bids[];
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { foreignKey: 'winner_id', onDelete: 'SET NULL' })
   user: User;
 
   @HasMany(() => CoinBlock)

@@ -37,7 +37,7 @@ export class CoinBlock extends Model<CoinBlock> {
   })
   status: string;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   user: User;
 
   @BelongsTo(() => AuctionItems)

@@ -40,7 +40,7 @@ export class Attendance extends Model<Attendance> {
   })
   teacher_id: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   teacher: User;
 
   @Column({
