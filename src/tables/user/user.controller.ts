@@ -62,8 +62,6 @@ export class UserController {
   }
 
   // Bitta user (admin yoki o‘zi ko‘rishi mumkin)
-  @UseGuards(AuthGuard)
-  // Faqat admin ko‘ra oladi
   @Roles('admin')
   @UseGuards(AuthGuard, RolesGuard) // Avval autentifikatsiya, keyin rol
   @Get('getAll')
@@ -71,7 +69,6 @@ export class UserController {
     const users = await this.userService.findAll();
     return users.map((user) => {
       const { password, ...userWithoutPassword } = user.get({ plain: true });
-      // Let frontend handle the fallback icon
       return userWithoutPassword;
     });
   }
@@ -101,14 +98,8 @@ export class UserController {
 
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    // ParseIntPipe qo‘shish yaxshi
     const user = await this.userService.findOne(id);
-
-    // Parolni javobdan olib tashlash (xavfsizlik uchun)
     const { password, ...userWithoutPassword } = user.get({ plain: true });
-
-    // Let frontend handle the fallback icon
-
     return userWithoutPassword;
   }
 
