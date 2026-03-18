@@ -232,12 +232,59 @@ export class CoinTransactionsService {
     return balance;
   }
 
-  // === YANGI: Foydalanuvchining haftalik o'zgarishi (foizda) ===
-  async getWeeklyChange(user_id: number) {
+  // === Haftalik davr hisoblagich ===
+  // Dushanba 00:00 dan boshlab, Juma 17:00 da yangilanadi
+  // Juma 17:00 gacha — OLDINGI hafta ko'rinadi
+  // Juma 17:00 dan keyin — JORIY hafta ko'rinadi
+  private getWeeklyPeriod(): { start: Date; end: Date; isCurrent: boolean } {
+    // UTC+5 (O'zbekiston vaqti)
+    const UZ_OFFSET = 5 * 60 * 60 * 1000;
     const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const uzNow = new Date(now.getTime() + UZ_OFFSET);
 
-    // Shu hafta ichidagi barcha tranzaksiyalar summasi
+    // O'zbekiston vaqtida haftaning kuni (0=Yakshanba, 1=Dushanba, ..., 5=Juma, 6=Shanba)
+    const dayOfWeek = uzNow.getUTCDay();
+    // Dushanbaga nisbatan qancha kun o'tgan (Dushanba=0, Seshanba=1, ..., Yakshanba=6)
+    const daysSinceMonday = (dayOfWeek + 6) % 7;
+
+    // SHU haftaning dushanbasi 00:00 (UZ vaqtida)
+    const thisMonday = new Date(uzNow);
+    thisMonday.setUTCDate(uzNow.getUTCDate() - daysSinceMonday);
+    thisMonday.setUTCHours(0, 0, 0, 0);
+
+    // SHU haftaning jumasi 17:00 (UZ vaqtida)
+    const thisFriday17 = new Date(thisMonday);
+    thisFriday17.setUTCDate(thisMonday.getUTCDate() + 4); // Juma = Dushanba + 4
+    thisFriday17.setUTCHours(17, 0, 0, 0);
+
+    // UTC ga qaytarish (UZ vaqtidan UTC offset'ni ayiramiz)
+    const thisMondayUTC = new Date(thisMonday.getTime() - UZ_OFFSET);
+    const thisFriday17UTC = new Date(thisFriday17.getTime() - UZ_OFFSET);
+
+    if (uzNow >= thisFriday17) {
+      // Juma 17:00 dan keyin — JORIY haftani ko'rsat
+      return {
+        start: thisMondayUTC,
+        end: now,
+        isCurrent: true,
+      };
+    } else {
+      // Juma 17:00 gacha — OLDINGI haftani ko'rsat
+      const prevMonday = new Date(thisMondayUTC.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const prevSunday = new Date(thisMondayUTC.getTime() - 1); // Oldingi yakshanba 23:59:59
+      return {
+        start: prevMonday,
+        end: prevSunday,
+        isCurrent: false,
+      };
+    }
+  }
+
+  // === Foydalanuvchining haftalik o'zgarishi (foizda) ===
+  async getWeeklyChange(user_id: number) {
+    const period = this.getWeeklyPeriod();
+
+    // Belgilangan davr ichidagi barcha tranzaksiyalar summasi
     const result = await this.coinTransactionModel.findOne({
       attributes: [
         [
@@ -254,7 +301,10 @@ export class CoinTransactionsService {
       ],
       where: {
         user_id,
-        createdAt: { [Op.gte]: oneWeekAgo },
+        createdAt: {
+          [Op.gte]: period.start,
+          [Op.lte]: period.end,
+        },
       },
       raw: true,
     });
@@ -267,7 +317,7 @@ export class CoinTransactionsService {
     });
     const currentCoins = user?.coins || 0;
 
-    // O'tgan haftadagi balans (hozirgi - haftalik o'zgarish)
+    // Davr boshidagi balans (hozirgi - haftalik o'zgarish)
     const previousBalance = currentCoins - weeklyChange;
 
     // Foiz hisoblanishi
@@ -275,7 +325,7 @@ export class CoinTransactionsService {
     if (previousBalance > 0) {
       percentageChange = Math.round((weeklyChange / previousBalance) * 100);
     } else if (weeklyChange > 0) {
-      percentageChange = 100; // Noldan o'sdi
+      percentageChange = 100;
     }
 
     return {
@@ -284,17 +334,17 @@ export class CoinTransactionsService {
       weekly_change: weeklyChange,
       previous_balance: previousBalance,
       percentage_change: percentageChange,
-      period_start: oneWeekAgo.toISOString(),
-      period_end: now.toISOString(),
+      period_start: period.start.toISOString(),
+      period_end: period.end.toISOString(),
+      is_current_week: period.isCurrent,
     };
   }
 
-  // === YANGI: Haftalik top 10 tanga ko'paygan talabalar ===
+  // === Haftalik top 10 tanga ko'paygan talabalar ===
   async getWeeklyTopGainers(limit: number = 10) {
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const period = this.getWeeklyPeriod();
 
-    // Shu hafta ichida eng ko'p tanga olgan studentlar
+    // Belgilangan davr ichida eng ko'p tanga olgan studentlar
     const results = await this.coinTransactionModel.findAll({
       attributes: [
         'user_id',
@@ -307,7 +357,10 @@ export class CoinTransactionsService {
         ],
       ],
       where: {
-        createdAt: { [Op.gte]: oneWeekAgo },
+        createdAt: {
+          [Op.gte]: period.start,
+          [Op.lte]: period.end,
+        },
       },
       include: [
         {
@@ -324,10 +377,10 @@ export class CoinTransactionsService {
       subQuery: false,
     });
 
-    return results.map((item: any, index: number) => {
-      const data = item.get({ plain: true });
-      const weeklyEarned = Number(data.weekly_earned || 0);
-      const currentCoins = data.receiver?.coins || 0;
+    const data = results.map((item: any, index: number) => {
+      const raw = item.get({ plain: true });
+      const weeklyEarned = Number(raw.weekly_earned || 0);
+      const currentCoins = raw.receiver?.coins || 0;
       const previousBalance = currentCoins - weeklyEarned;
       const percentageChange = previousBalance > 0
         ? Math.round((weeklyEarned / previousBalance) * 100)
@@ -335,15 +388,22 @@ export class CoinTransactionsService {
 
       return {
         rank: index + 1,
-        user_id: data.user_id,
-        fullname: data.receiver?.fullname || data.receiver?.username || 'Noma\'lum',
-        username: data.receiver?.username,
-        profile_picture: data.receiver?.profile_picture,
+        user_id: raw.user_id,
+        fullname: raw.receiver?.fullname || raw.receiver?.username || 'Noma\'lum',
+        username: raw.receiver?.username,
+        profile_picture: raw.receiver?.profile_picture,
         current_coins: currentCoins,
         weekly_earned: weeklyEarned,
         percentage_change: percentageChange,
-        class_id: data.receiver?.class_id,
+        class_id: raw.receiver?.class_id,
       };
     });
+
+    return {
+      data,
+      period_start: period.start.toISOString(),
+      period_end: period.end.toISOString(),
+      is_current_week: period.isCurrent,
+    };
   }
 }
