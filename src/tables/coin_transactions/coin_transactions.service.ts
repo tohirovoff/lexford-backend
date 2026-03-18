@@ -231,4 +231,119 @@ export class CoinTransactionsService {
     await this.userModel.update({ coins: balance }, { where: { id: user_id } });
     return balance;
   }
+
+  // === YANGI: Foydalanuvchining haftalik o'zgarishi (foizda) ===
+  async getWeeklyChange(user_id: number) {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Shu hafta ichidagi barcha tranzaksiyalar summasi
+    const result = await this.coinTransactionModel.findOne({
+      attributes: [
+        [
+          this.coinTransactionModel.sequelize!.fn(
+            'COALESCE',
+            this.coinTransactionModel.sequelize!.fn(
+              'SUM',
+              this.coinTransactionModel.sequelize!.col('amount'),
+            ),
+            0,
+          ),
+          'weekly_sum',
+        ],
+      ],
+      where: {
+        user_id,
+        createdAt: { [Op.gte]: oneWeekAgo },
+      },
+      raw: true,
+    });
+
+    const weeklyChange = parseInt((result as any)?.weekly_sum || '0', 10);
+
+    // Hozirgi balans
+    const user = await this.userModel.findByPk(user_id, {
+      attributes: ['id', 'coins', 'fullname', 'username'],
+    });
+    const currentCoins = user?.coins || 0;
+
+    // O'tgan haftadagi balans (hozirgi - haftalik o'zgarish)
+    const previousBalance = currentCoins - weeklyChange;
+
+    // Foiz hisoblanishi
+    let percentageChange = 0;
+    if (previousBalance > 0) {
+      percentageChange = Math.round((weeklyChange / previousBalance) * 100);
+    } else if (weeklyChange > 0) {
+      percentageChange = 100; // Noldan o'sdi
+    }
+
+    return {
+      user_id,
+      current_coins: currentCoins,
+      weekly_change: weeklyChange,
+      previous_balance: previousBalance,
+      percentage_change: percentageChange,
+      period_start: oneWeekAgo.toISOString(),
+      period_end: now.toISOString(),
+    };
+  }
+
+  // === YANGI: Haftalik top 10 tanga ko'paygan talabalar ===
+  async getWeeklyTopGainers(limit: number = 10) {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Shu hafta ichida eng ko'p tanga olgan studentlar
+    const results = await this.coinTransactionModel.findAll({
+      attributes: [
+        'user_id',
+        [
+          this.coinTransactionModel.sequelize!.fn(
+            'SUM',
+            this.coinTransactionModel.sequelize!.col('amount'),
+          ),
+          'weekly_earned',
+        ],
+      ],
+      where: {
+        createdAt: { [Op.gte]: oneWeekAgo },
+      },
+      include: [
+        {
+          model: User,
+          as: 'receiver',
+          attributes: ['id', 'fullname', 'username', 'coins', 'profile_picture', 'class_id'],
+          where: { role: 'student' },
+          required: true,
+        },
+      ],
+      group: ['user_id', 'receiver.id'],
+      order: [[this.coinTransactionModel.sequelize!.literal('weekly_earned'), 'DESC']],
+      limit,
+      subQuery: false,
+    });
+
+    return results.map((item: any, index: number) => {
+      const data = item.get({ plain: true });
+      const weeklyEarned = Number(data.weekly_earned || 0);
+      const currentCoins = data.receiver?.coins || 0;
+      const previousBalance = currentCoins - weeklyEarned;
+      const percentageChange = previousBalance > 0
+        ? Math.round((weeklyEarned / previousBalance) * 100)
+        : weeklyEarned > 0 ? 100 : 0;
+
+      return {
+        rank: index + 1,
+        user_id: data.user_id,
+        fullname: data.receiver?.fullname || data.receiver?.username || 'Noma\'lum',
+        username: data.receiver?.username,
+        profile_picture: data.receiver?.profile_picture,
+        current_coins: currentCoins,
+        weekly_earned: weeklyEarned,
+        percentage_change: percentageChange,
+        class_id: data.receiver?.class_id,
+      };
+    });
+  }
 }

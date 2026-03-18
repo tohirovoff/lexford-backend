@@ -39,6 +39,18 @@ export class CoinTransactionsController {
     return this.coinTransactionsService.findAll();
   }
 
+  // === YANGI: Haftalik top 10 tanga ko'paygan talabalar ===
+  @Get('weekly-top-gainers')
+  async getWeeklyTopGainers() {
+    return this.coinTransactionsService.getWeeklyTopGainers(10);
+  }
+
+  // === YANGI: Foydalanuvchining haftalik o'zgarishi ===
+  @Get('weekly-change/:user_id')
+  async getWeeklyChange(@Param('user_id', ParseIntPipe) user_id: number) {
+    return this.coinTransactionsService.getWeeklyChange(user_id);
+  }
+
   // Bitta tranzaksiyani ID bo'yicha olish
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
