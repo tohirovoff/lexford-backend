@@ -25,6 +25,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginDto } from './dto/login.dto'; 
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { Roles } from 'src/common/auth/role.decorator';
 import { RolesGuard } from 'src/common/auth/role.guard';
 import { AuthGuard } from 'src/common/auth/auth.guard'; // sizning guard
@@ -197,5 +198,15 @@ export class UserController {
       changePasswordDto.currentPassword,
       changePasswordDto.newPassword,
     );
+  }
+
+  @Roles('admin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Post(':id/reset-password')
+  async adminResetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() adminResetPasswordDto: AdminResetPasswordDto,
+  ) {
+    return this.authService.adminResetPassword(id, adminResetPasswordDto.newPassword);
   }
 }

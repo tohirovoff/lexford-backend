@@ -165,4 +165,17 @@ export class AuthService {
 
     return { message: 'Parol muvaffaqiyatli o‘zgartirildi' };
   }
+
+  async adminResetPassword(userId: number, newPassword: string) {
+    const user = await this.userService.userModel.findByPk(userId);
+    if (!user) {
+      throw new BadRequestException('Foydalanuvchi topilmadi');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    return { message: 'Parol admin tomonidan muvaffaqiyatli o‘zgartirildi' };
+  }
 }
