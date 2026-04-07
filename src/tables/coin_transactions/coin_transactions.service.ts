@@ -40,18 +40,67 @@ export class CoinTransactionsService {
       // Miqdorni aniq butun son (integer) ekanligiga ishonch hosil qilamiz
       const amount = Math.trunc(Number(dto.amount));
 
-      // Maksimal 10 tanga berish cheklovi (faqat reward uchun)
-      if (dto.type === 'reward' && amount > 10) {
-        throw new HttpException(
-          'Maksimal 10 tanga berish mumkin',
-          HttpStatus.BAD_REQUEST,
-        );
+      let status = 'approved';
+      if (dto.type === 'reward') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Bugun shu o'qituvchi aynan shu o'quvchiga jami qancha tanga berganligini hisoblash
+        const todayTotalObj = await this.coinTransactionModel.findOne({
+          attributes: [
+            [
+              this.coinTransactionModel.sequelize!.fn(
+                'SUM',
+                this.coinTransactionModel.sequelize!.col('amount'),
+              ),
+              'total_today',
+            ],
+          ],
+          where: {
+            user_id: dto.user_id,
+            created_by: dto.created_by,
+            type: 'reward',
+            createdAt: { [Op.gte]: today },
+          } as any,
+          raw: true,
+          transaction: t,
+        });
+
+        const todayTotal = todayTotalObj ? Number((todayTotalObj as any).total_today || 0) : 0;
+
+        if (amount > 10 || (todayTotal + amount) > 10) {
+          status = 'pending';
+        }
       }
 
       const transaction = await this.coinTransactionModel.create(
-        dto as any,
+        { ...dto, status } as any,
         { transaction: t }
       );
+
+      // Agar tranzaksiya admin tasdig'ini kutayotgan bo'lsa
+      if (status === 'pending') {
+        // Barcha adminlarga xabarnoma yuborish
+        const admins = await this.userModel.findAll({ where: { role: 'admin' }, transaction: t });
+        const giver = dto.created_by ? await this.userModel.findByPk(dto.created_by, { transaction: t }) : null;
+        const receiver = await this.userModel.findByPk(dto.user_id, { transaction: t });
+        
+        for (const admin of admins) {
+          await this.notificationService.create({
+            user_id: admin.id,
+            title: 'Tanga qo\'shish tasdig\'i',
+            message: `${giver?.fullname || 'Foydalanuvchi'} o'quvchi ${receiver?.fullname || 'student'} ga jami kunlik yoki birdaniga 10 tadan ortiq tanga qo'shmoqchi. Iltimos, ma'qullang.`,
+            type: 'info',
+            is_read: false,
+          } as any);
+        }
+        
+        return {
+          status: 'pending',
+          message: 'Bir kun ichida 10 tadan ortiq tanga qo\'shish uchun admin tasdig\'i kutilmoqda. Tasdiqlangach, tangalar qo\'shiladi.',
+          transaction,
+        };
+      }
 
       // User.coins maydonini atomic (xavfsiz) yangilash – race condition va ma'lumot yo'qolishini oldini olish uchun
       const user = await this.userModel.findByPk(dto.user_id, { transaction: t });
@@ -218,7 +267,10 @@ export class CoinTransactionsService {
           'balance',
         ],
       ],
-      where: { user_id },
+      where: { 
+        user_id,
+        status: { [Op.or]: ['approved', { [Op.is]: null }] }
+      } as any,
       raw: true,
     });
 
@@ -301,6 +353,10 @@ export class CoinTransactionsService {
       ],
       where: {
         user_id,
+        [Op.or]: [
+          { status: 'approved' },
+          { status: { [Op.is]: null } }
+        ] as any,
         createdAt: {
           [Op.gte]: period.start,
           [Op.lte]: period.end,
@@ -357,6 +413,10 @@ export class CoinTransactionsService {
         ],
       ],
       where: {
+        [Op.or]: [
+          { status: 'approved' },
+          { status: { [Op.is]: null } }
+        ] as any,
         createdAt: {
           [Op.gte]: period.start,
           [Op.lte]: period.end,
@@ -405,5 +465,251 @@ export class CoinTransactionsService {
       period_end: period.end.toISOString(),
       is_current_week: period.isCurrent,
     };
+  }
+  // === YANGI: Shubhali tranzaksiyalarni aniqlash ===
+  async getSuspiciousActivity() {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+    // 1. Bugun eng ko'p tanga ulashganlar (amount > 0 and type = 'reward')
+    const topGiversRows = await this.coinTransactionModel.findAll({
+      attributes: [
+        'created_by',
+        [
+          this.coinTransactionModel.sequelize!.fn(
+            'SUM',
+            this.coinTransactionModel.sequelize!.col('amount'),
+          ),
+          'total_given',
+        ],
+        [
+          this.coinTransactionModel.sequelize!.fn(
+            'COUNT',
+            this.coinTransactionModel.sequelize!.col('id'),
+          ),
+          'transaction_count',
+        ],
+      ],
+      where: {
+        type: 'reward',
+        amount: { [Op.gt]: 0 },
+        created_by: { [Op.not]: null as any },
+        createdAt: { [Op.gte]: today },
+        [Op.or]: [
+          { status: 'approved' },
+          { status: null as any }
+        ]
+      } as any,
+      include: [
+        {
+          model: User,
+          as: 'giver',
+          attributes: ['id', 'fullname', 'username', 'role'],
+        },
+      ],
+      group: ['created_by', 'giver.id'],
+      order: [[this.coinTransactionModel.sequelize!.literal('total_given'), 'DESC']],
+      limit: 10,
+    });
+
+    // 2. Bugun eng ko'p tanga yig'ganlar
+    const topReceiversRows = await this.coinTransactionModel.findAll({
+      attributes: [
+        'user_id',
+        [
+          this.coinTransactionModel.sequelize!.fn(
+            'SUM',
+            this.coinTransactionModel.sequelize!.col('amount'),
+          ),
+          'total_received',
+        ],
+      ],
+      where: {
+        type: 'reward',
+        amount: { [Op.gt]: 0 },
+        createdAt: { [Op.gte]: today },
+        [Op.or]: [
+          { status: 'approved' },
+          { status: null as any }
+        ]
+      } as any,
+      include: [
+        {
+          model: User,
+          as: 'receiver',
+          attributes: ['id', 'fullname', 'username', 'role'],
+        },
+      ],
+      group: ['user_id', 'receiver.id'],
+      order: [[this.coinTransactionModel.sequelize!.literal('total_received'), 'DESC']],
+      limit: 10,
+    });
+
+    // 3. Shubhali takroriy tranzaksiyalar (bitta o'qituvchidan bitta o'quvchiga bugun 3+ marta)
+    const repeatedTransactionsRows = await this.coinTransactionModel.findAll({
+      attributes: [
+        'created_by',
+        'user_id',
+        [
+          this.coinTransactionModel.sequelize!.fn('COUNT', this.coinTransactionModel.sequelize!.col('CoinTransactions.id')),
+          'transfer_count',
+        ],
+        [
+          this.coinTransactionModel.sequelize!.fn('SUM', this.coinTransactionModel.sequelize!.col('amount')),
+          'total_amount',
+        ],
+      ],
+      where: {
+        type: 'reward',
+        amount: { [Op.gt]: 0 },
+        created_by: { [Op.not]: null as any },
+        createdAt: { [Op.gte]: today },
+        [Op.or]: [
+          { status: 'approved' },
+          { status: null as any }
+        ]
+      } as any,
+      include: [
+        {
+          model: User,
+          as: 'giver',
+          attributes: ['id', 'fullname', 'username'],
+        },
+        {
+          model: User,
+          as: 'receiver',
+          attributes: ['id', 'fullname', 'username'],
+        },
+      ],
+      group: ['created_by', 'user_id', 'giver.id', 'receiver.id'],
+      having: this.coinTransactionModel.sequelize!.where(
+        this.coinTransactionModel.sequelize!.fn('COUNT', this.coinTransactionModel.sequelize!.col('CoinTransactions.id')),
+        '>=',
+        3
+      ),
+      order: [[this.coinTransactionModel.sequelize!.literal('transfer_count'), 'DESC']],
+    });
+
+      return {
+        topGivers: topGiversRows.map((item: any) => {
+          const raw = item.get({ plain: true });
+          return {
+            ...raw,
+            total_given: Number(raw.total_given || 0),
+            transaction_count: Number(raw.transaction_count || 0)
+          };
+        }),
+        topReceivers: topReceiversRows.map((item: any) => {
+          const raw = item.get({ plain: true });
+          return {
+            ...raw,
+            total_received: Number(raw.total_received || 0)
+          };
+        }),
+        repeatedTransactions: repeatedTransactionsRows.map((item: any) => {
+          const raw = item.get({ plain: true });
+          return {
+            ...raw,
+            transfer_count: Number(raw.transfer_count || 0),
+            total_amount: Number(raw.total_amount || 0)
+          };
+        }),
+      };
+    } catch (error) {
+      console.error('Error in getSuspiciousActivity:', error);
+      throw error;
+    }
+  }
+
+  // === ADMIN uchun: Pending tranzaksiyalar ro'yxati ===
+  async getPendingTransactions() {
+    return this.coinTransactionModel.findAll({
+      where: { status: 'pending' },
+      include: this.getIncludes(),
+      order: [['createdAt', 'DESC']],
+    });
+  }
+
+  // === ADMIN uchun: Pending tranzaksiyani tasdiqlash ===
+  async approvePending(id: number) {
+    const sequelize = this.coinTransactionModel.sequelize;
+    if (!sequelize) throw new HttpException('Sequelize topilmadi', 500);
+
+    const t = await sequelize.transaction();
+
+    try {
+      const transaction = await this.coinTransactionModel.findByPk(id, { transaction: t });
+      if (!transaction) throw new NotFoundException('Tranzaksiya topilmadi');
+      
+      const currentStatus = transaction.getDataValue('status') || transaction.status;
+      if (currentStatus !== 'pending') {
+        throw new HttpException('Bu tranzaksiya allaqachon ko\'rib chiqilgan yoko status belgilanmagan', HttpStatus.BAD_REQUEST);
+      }
+
+      transaction.setDataValue('status', 'approved');
+      await transaction.save({ transaction: t });
+
+      const user = await this.userModel.findByPk(transaction.user_id, { transaction: t });
+      if (user) {
+        // Tanga qo'shish
+        await user.increment('coins', {
+          by: transaction.amount,
+          transaction: t,
+        });
+
+        // O'quvchiga xabar berish
+        await this.notificationService.create({
+          user_id: user.id,
+          title: 'Tangalar qabul qilindi',
+          message: `Admin tomonidan sizga ${transaction.amount} ta tanga tasdiqlandi. Sabab: ${transaction.reason || 'belgilanmagan'}`,
+          type: 'reward',
+        } as any);
+      }
+
+      // O'qituvchiga ham xabar yuborish
+      if (transaction.created_by) {
+         await this.notificationService.create({
+          user_id: transaction.created_by,
+          title: 'Tanga qo\'shish tasdiqlandi',
+          message: `Sizning ${transaction.amount} tanga qo'shish so'rovingiz admin tomonidan tasdiqlandi.`,
+          type: 'info',
+        } as any);
+      }
+
+      await t.commit();
+      return transaction;
+    } catch (error) {
+      await t.rollback();
+      throw new HttpException(
+        error.message || 'Tranzaksiyani tasdiqlashda xatolik yuz berdi',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // === ADMIN uchun: Pending tranzaksiyani rad etish ===
+  async rejectPending(id: number) {
+    const transaction = await this.coinTransactionModel.findByPk(id);
+    if (!transaction) throw new NotFoundException('Tranzaksiya topilmadi');
+    const currentStatus = transaction.getDataValue('status') || transaction.status;
+    if (currentStatus !== 'pending') {
+      throw new HttpException('Bu tranzaksiya allaqachon ko\'rib chiqilgan', HttpStatus.BAD_REQUEST);
+    }
+
+    transaction.setDataValue('status', 'rejected');
+    await transaction.save();
+
+    // O'qituvchiga xabar yuborish
+    if (transaction.created_by) {
+      await this.notificationService.create({
+          user_id: transaction.created_by,
+          title: 'Tanga qo\'shish rad etildi',
+          message: `Sizning ${transaction.amount} tanga qo'shish so'rovingiz admin tomonidan rad etildi.`,
+          type: 'info',
+      } as any);
+    }
+
+    return transaction;
   }
 }

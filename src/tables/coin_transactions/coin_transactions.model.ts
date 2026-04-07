@@ -35,6 +35,13 @@ export class CoinTransactions extends Model<CoinTransactions> {
   })
   reason: string;
 
+  @Column({
+    type: DataType.STRING,
+    defaultValue: 'approved',
+  })
+  status: string;
+
+
   @ForeignKey(() => User)
   @Column({
     type: DataType.INTEGER,

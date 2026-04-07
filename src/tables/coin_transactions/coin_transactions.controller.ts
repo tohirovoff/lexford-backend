@@ -33,6 +33,12 @@ export class CoinTransactionsController {
     return this.coinTransactionsService.createMany(createCoinTransactionDtos);
   }
 
+  // === YANGI: Shubhali tranzaksiyalarni aniqlash ===
+  @Get('suspicious')
+  async getSuspiciousActivity() {
+    return this.coinTransactionsService.getSuspiciousActivity();
+  }
+
   // Barcha tranzaksiyalarni olish (ehtiyot bo'ling – ko'p ma'lumot bo'lishi mumkin)
   @Get()
   findAll() {
@@ -49,6 +55,24 @@ export class CoinTransactionsController {
   @Get('weekly-change/:user_id')
   async getWeeklyChange(@Param('user_id', ParseIntPipe) user_id: number) {
     return this.coinTransactionsService.getWeeklyChange(user_id);
+  }
+
+  // === ADMIN uchun: Pending tranzaksiyalar ro'yxati ===
+  @Get('pending')
+  getPendingTransactions() {
+    return this.coinTransactionsService.getPendingTransactions();
+  }
+
+  // === ADMIN uchun: Pending tranzaksiyani tasdiqlash ===
+  @Post('approve/:id')
+  approvePending(@Param('id', ParseIntPipe) id: number) {
+    return this.coinTransactionsService.approvePending(id);
+  }
+
+  // === ADMIN uchun: Pending tranzaksiyani rad etish ===
+  @Post('reject/:id')
+  rejectPending(@Param('id', ParseIntPipe) id: number) {
+    return this.coinTransactionsService.rejectPending(id);
   }
 
   // Bitta tranzaksiyani ID bo'yicha olish
