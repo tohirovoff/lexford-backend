@@ -688,6 +688,68 @@ export class CoinTransactionsService {
     }
   }
 
+  // === ADMIN uchun: Barcha pending tranzaksiyalarni tasdiqlash ===
+  async approveAllPending() {
+    const sequelize = this.coinTransactionModel.sequelize;
+    if (!sequelize) throw new HttpException('Sequelize topilmadi', 500);
+
+    const t = await sequelize.transaction();
+
+    try {
+      const transactions = await this.coinTransactionModel.findAll({
+        where: { status: 'pending' },
+        transaction: t,
+      });
+
+      if (transactions.length === 0) {
+        throw new HttpException('Tasdiqlash uchun pending tranzaksiyalar topilmadi', HttpStatus.NOT_FOUND);
+      }
+
+      const results: CoinTransactions[] = [];
+      for (const transaction of transactions) {
+        transaction.setDataValue('status', 'approved');
+        await transaction.save({ transaction: t });
+
+        const user = await this.userModel.findByPk(transaction.user_id, { transaction: t });
+        if (user) {
+          await user.increment('coins', {
+            by: transaction.amount,
+            transaction: t,
+          });
+
+          await this.notificationService.create({
+            user_id: user.id,
+            title: 'Tangalar qabul qilindi',
+            message: `Admin tomonidan barcha so'rovlar tasdiqlandi va sizga ${transaction.amount} ta tanga qo'shildi. Sabab: ${transaction.reason || 'belgilanmagan'}`,
+            type: 'reward',
+          } as any);
+        }
+
+        if (transaction.created_by) {
+          await this.notificationService.create({
+            user_id: transaction.created_by,
+            title: 'Tanga qo\'shish tasdiqlandi',
+            message: `Sizning ${transaction.amount} tanga qo'shish so'rovingiz admin tomonidan tasdiqlandi (ommaviy tasdiqlash).`,
+            type: 'info',
+          } as any);
+        }
+        results.push(transaction);
+      }
+
+      await t.commit();
+      return {
+        message: `${results.length} ta tranzaksiya muvaffaqiyatli tasdiqlandi`,
+        count: results.length,
+      };
+    } catch (error) {
+      await t.rollback();
+      throw new HttpException(
+        error.message || 'Tranzaksiyalarni ommaviy tasdiqlashda xatolik yuz berdi',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   // === ADMIN uchun: Pending tranzaksiyani rad etish ===
   async rejectPending(id: number) {
     const transaction = await this.coinTransactionModel.findByPk(id);

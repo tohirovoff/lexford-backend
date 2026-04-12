@@ -69,6 +69,12 @@ export class CoinTransactionsController {
     return this.coinTransactionsService.approvePending(id);
   }
 
+  // === ADMIN uchun: Barcha pending tranzaksiyalarni tasdiqlash ===
+  @Post('approve-all')
+  approveAllPending() {
+    return this.coinTransactionsService.approveAllPending();
+  }
+
   // === ADMIN uchun: Pending tranzaksiyani rad etish ===
   @Post('reject/:id')
   rejectPending(@Param('id', ParseIntPipe) id: number) {
