@@ -654,7 +654,7 @@ export class CoinTransactionsService {
       if (user) {
         // Tanga qo'shish
         await user.increment('coins', {
-          by: transaction.amount,
+          by: Number(transaction.amount),
           transaction: t,
         });
 
@@ -713,7 +713,7 @@ export class CoinTransactionsService {
         const user = await this.userModel.findByPk(transaction.user_id, { transaction: t });
         if (user) {
           await user.increment('coins', {
-            by: transaction.amount,
+            by: Number(transaction.amount),
             transaction: t,
           });
 
