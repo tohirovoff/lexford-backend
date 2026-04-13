@@ -105,14 +105,11 @@ export class CoinTransactionsService {
       // User.coins maydonini atomic (xavfsiz) yangilash – race condition va ma'lumot yo'qolishini oldini olish uchun
       const user = await this.userModel.findByPk(dto.user_id, { transaction: t });
       if (user) {
-        // Musbat yoki manfiy bo'lishidan qat'i nazar increment ishlatamiz (decrement -X bilan teng)
-        await user.increment('coins', {
-          by: amount,
-          transaction: t,
-        });
+        // Musbat yoki manfiy bo'lishidan qat'i nazar hisoblaymiz
+        const newBalance = (Number(user.coins) || 0) + Number(amount);
+        await user.update({ coins: newBalance }, { transaction: t });
 
-        // Yangilangan qiymatni logda ko'rish uchun reload qilamiz
-        await user.reload({ transaction: t });
+        // Yangilangan qiymatni ko'rish uchun (oldin reload kerak edi)
         console.log(
           `DEBUG coins updated: userId=${dto.user_id}, change=${amount}, newBalance=${user.getDataValue('coins')}`,
         );
@@ -652,11 +649,9 @@ export class CoinTransactionsService {
 
       const user = await this.userModel.findByPk(transaction.user_id, { transaction: t });
       if (user) {
-        // Tanga qo'shish
-        await user.increment('coins', {
-          by: Number(transaction.amount),
-          transaction: t,
-        });
+        // Tanga qo'shish xavfsiz usulda (NULL xatosini oldini olish)
+        const newBalance = (Number(user.coins) || 0) + Number(transaction.amount);
+        await user.update({ coins: newBalance }, { transaction: t });
 
         // O'quvchiga xabar berish
         await this.notificationService.create({
@@ -712,10 +707,8 @@ export class CoinTransactionsService {
 
         const user = await this.userModel.findByPk(transaction.user_id, { transaction: t });
         if (user) {
-          await user.increment('coins', {
-            by: Number(transaction.amount),
-            transaction: t,
-          });
+          const newBalance = (Number(user.coins) || 0) + Number(transaction.amount);
+          await user.update({ coins: newBalance }, { transaction: t });
 
           await this.notificationService.create({
             user_id: user.id,
