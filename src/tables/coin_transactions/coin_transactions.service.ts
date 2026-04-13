@@ -41,66 +41,11 @@ export class CoinTransactionsService {
       const amount = Math.trunc(Number(dto.amount));
 
       let status = 'approved';
-      if (dto.type === 'reward') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // Bugun shu o'qituvchi aynan shu o'quvchiga jami qancha tanga berganligini hisoblash
-        const todayTotalObj = await this.coinTransactionModel.findOne({
-          attributes: [
-            [
-              this.coinTransactionModel.sequelize!.fn(
-                'SUM',
-                this.coinTransactionModel.sequelize!.col('amount'),
-              ),
-              'total_today',
-            ],
-          ],
-          where: {
-            user_id: dto.user_id,
-            created_by: dto.created_by,
-            type: 'reward',
-            createdAt: { [Op.gte]: today },
-          } as any,
-          raw: true,
-          transaction: t,
-        });
-
-        const todayTotal = todayTotalObj ? Number((todayTotalObj as any).total_today || 0) : 0;
-
-        if (amount > 10 || (todayTotal + amount) > 10) {
-          status = 'pending';
-        }
-      }
 
       const transaction = await this.coinTransactionModel.create(
         { ...dto, status } as any,
         { transaction: t }
       );
-
-      // Agar tranzaksiya admin tasdig'ini kutayotgan bo'lsa
-      if (status === 'pending') {
-        // Barcha adminlarga xabarnoma yuborish
-        const admins = await this.userModel.findAll({ where: { role: 'admin' }, transaction: t });
-        const giver = dto.created_by ? await this.userModel.findByPk(dto.created_by, { transaction: t }) : null;
-        const receiver = await this.userModel.findByPk(dto.user_id, { transaction: t });
-        
-        for (const admin of admins) {
-          await this.notificationService.create({
-            user_id: admin.id,
-            title: 'Tanga qo\'shish tasdig\'i',
-            message: `${giver?.fullname || 'Foydalanuvchi'} o'quvchi ${receiver?.fullname || 'student'} ga jami kunlik yoki birdaniga 10 tadan ortiq tanga qo'shmoqchi. Iltimos, ma'qullang.`,
-            type: 'info',
-            is_read: false,
-          } as any);
-        }
-        
-        return {
-          status: 'pending',
-          message: 'Bir kun ichida 10 tadan ortiq tanga qo\'shish uchun admin tasdig\'i kutilmoqda. Tasdiqlangach, tangalar qo\'shiladi.',
-          transaction,
-        };
-      }
 
       // User.coins maydonini atomic (xavfsiz) yangilash – race condition va ma'lumot yo'qolishini oldini olish uchun
       const user = await this.userModel.findByPk(dto.user_id, { transaction: t });
