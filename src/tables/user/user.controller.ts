@@ -62,16 +62,29 @@ export class UserController {
     return this.authService.login(loginDto);
   }
 
+  @Get('stats')
+  @Roles('admin', 'teacher')
+  @UseGuards(AuthGuard, RolesGuard)
+  async getStats() {
+    return this.userService.getDashboardStats();
+  }
+
   // Bitta user (admin yoki o‘zi ko‘rishi mumkin)
   @Roles('admin')
-  @UseGuards(AuthGuard, RolesGuard) // Avval autentifikatsiya, keyin rol
+  @UseGuards(AuthGuard, RolesGuard)
   @Get('getAll')
-  async findAll() {
-    const users = await this.userService.findAll();
-    return users.map((user) => {
-      const { password, ...userWithoutPassword } = user.get({ plain: true });
-      return userWithoutPassword;
-    });
+  async findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+  ) {
+    const result = await this.userService.findAll(page, limit);
+    return {
+      ...result,
+      data: result.data.map((user) => {
+        const { password, ...userWithoutPassword } = user.get({ plain: true });
+        return userWithoutPassword;
+      }),
+    };
   }
 
   // Hozirgi foydalanuvchi ma’lumotlari

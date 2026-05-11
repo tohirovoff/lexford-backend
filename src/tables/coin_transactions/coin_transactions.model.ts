@@ -8,7 +8,18 @@ import {
 } from 'sequelize-typescript';
 import { User } from '../user/user.model';
 
-@Table({ tableName: 'coin_transactions' })
+@Table({ 
+  tableName: 'coin_transactions',
+  indexes: [
+    { fields: ['user_id'] },
+    { fields: ['created_by'] },
+    { fields: ['status'] },
+    { fields: ['type'] },
+    { fields: ['createdAt'] },
+    { fields: ['user_id', 'status', 'createdAt'], name: 'idx_user_status_date' },
+    { fields: ['created_by', 'createdAt'], name: 'idx_creator_date' },
+  ]
+})
 export class CoinTransactions extends Model<CoinTransactions> {
   @ForeignKey(() => User)
   @Column({

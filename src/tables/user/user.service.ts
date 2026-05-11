@@ -12,13 +12,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from './user.model';
 import { ConfigService } from 'src/common/config/config.service';
-import { Penalties } from '../penalties/penalties.model';
-import { Bids } from '../bids/bids.model';
-import { AuctionItems } from '../action-items/auction-items.model';
-import { CoinTransactions } from '../coin_transactions/coin_transactions.model';
 import { CoinBlock } from '../coin_blocks/coin_blocks.model';
-import { AuctionLog } from '../auction_logs/auction_logs.model';
-import { Attendance } from '../attendance/attendance.model';
 import { Class } from '../classes/classes.model';
 import { Op } from 'sequelize';
 
@@ -50,21 +44,23 @@ export class UserService {
     private readonly configService: ConfigService,
   ) {}
 
-  // Har bir queryda ishlatiladigan include — takrorlanmaslik uchun
-  private getUserIncludes() {
+  // Faqat kerakli include'larni har bir metodga alohida qo'shamiz
+  // Eski getUserIncludes() 11 ta JOIN qilar edi — bu eng asosiy bottleneck edi!
+  private getMinimalIncludes() {
     return [
-      { model: Penalties, as: 'receivedPenalties' },
-      { model: Penalties, as: 'issuedPenalties' },
-      { model: AuctionItems, as: 'auctionItems' },
-      { model: Bids, as: 'stavkalar' },
-      { model: CoinTransactions, as: 'receivedTransactions' },
-      { model: CoinTransactions, as: 'givenTransactions' },
-      { model: CoinBlock, as: 'coinBlocks' },
-      { model: AuctionLog, as: 'auctionLogs' },
-      { model: Attendance },
-      { model: Class, as: 'managedClasses' },
-      { model: Class, as: 'class' },
+      { model: Class, as: 'class', attributes: ['id', 'name'] },
     ];
+  }
+
+  async getDashboardStats() {
+    const [studentsCount, teachersCount, classesCount] = await Promise.all([
+      this.userModel.count({ where: { role: 'student' } }),
+      this.userModel.count({ where: { role: 'teacher' } }),
+      this.userModel.count({ where: { role: 'admin' } }), // Added admin count too
+    ]);
+    
+    // We can also add some transaction stats here if needed, but the user only asked for these
+    return { studentsCount, teachersCount, classesCount };
   }
 
   async create(createUserDto: CreateUserDto) {
@@ -79,16 +75,29 @@ export class UserService {
     }
   }
 
-  async findAll() {
-    const users = await this.userModel.findAll({
-      include: this.getUserIncludes(),
+  async findAll(page: number = 1, limit: number = 50) {
+    const offset = (page - 1) * limit;
+    const { rows, count } = await this.userModel.findAndCountAll({
+      include: this.getMinimalIncludes(),
+      attributes: { exclude: ['password'] },
+      limit,
+      offset,
+      distinct: true,
+      order: [['createdAt', 'DESC']],
     });
-    return users;
+    return {
+      data: rows,
+      total: count,
+      page,
+      limit,
+      totalPages: Math.ceil(count / limit),
+    };
   }
 
   async getMe(userId: number) {
     const user = await this.userModel.findByPk(userId, {
-      include: this.getUserIncludes(),
+      include: this.getMinimalIncludes(),
+      attributes: { exclude: ['password'] },
     });
 
     if (!user) {
@@ -100,7 +109,7 @@ export class UserService {
 
   async findOne(id: number) {
     const user = await this.userModel.findByPk(id, {
-      include: this.getUserIncludes(),
+      include: this.getMinimalIncludes(),
     });
 
     if (!user) {
@@ -160,39 +169,69 @@ export class UserService {
   ): Promise<SchoolLeaderboardResponse> {
     const offset = (page - 1) * pageSize;
 
-    const { rows, count } = await this.userModel.findAndCountAll({
+    // Total countni alohida olamiz, chunki GROUP BY ishlatilganda findAndCountAll noto'g'ri count qaytaradi
+    const totalCount = await this.userModel.count({
+      where: { role: 'student' },
+    });
+
+    const rows = await this.userModel.findAll({
       where: {
         role: 'student',
       },
       attributes: [
         'id',
-        ['username', 'username'], // majburiy alias
-        ['fullname', 'fullname'], // majburiy alias
-        ['coins', 'coins'],
-        ['profile_picture', 'profile_picture'],
+        'username',
+        'fullname',
+        'coins',
+        'profile_picture',
+        'class_name',
         [
           this.userModel.sequelize!.literal(
-            `COALESCE((SELECT name FROM classes WHERE classes.id = "User".class_id LIMIT 1), "User".class_name)`,
+            `COALESCE("class"."name", "User"."class_name")`,
           ),
-          'class_name',
+          'display_class_name',
         ],
         [
-          this.userModel.sequelize!.literal(
-            `(SELECT COALESCE(SUM(blocked_amount), 0) 
-           FROM coin_blocks 
-           WHERE coin_blocks.user_id = "User".id 
-             AND coin_blocks.status = 'blocked')`,
+          this.userModel.sequelize!.fn(
+            'COALESCE',
+            this.userModel.sequelize!.fn(
+              'SUM',
+              this.userModel.sequelize!.col('coinBlocks.blocked_amount'),
+            ),
+            0,
           ),
           'blocked_coins',
         ],
       ],
-      order: [
-        ['coins', 'DESC'], // ← FAQAT oddiy coins bo'yicha tartiblash!
+      include: [
+        {
+          model: Class,
+          as: 'class',
+          attributes: [], // Attributes literal orqali olinmoqda
+          required: false,
+        },
+        {
+          model: CoinBlock,
+          as: 'coinBlocks',
+          attributes: [],
+          required: false,
+          where: { status: 'blocked' },
+        },
       ],
+      group: [
+        'User.id',
+        'User.username',
+        'User.fullname',
+        'User.coins',
+        'User.profile_picture',
+        'User.class_name',
+        'class.id',
+      ],
+      order: [['coins', 'DESC']],
       limit: pageSize,
       offset,
       subQuery: false,
-      raw: true, // ← RAW natija olish — eng ishonchli usul!
+      raw: true,
     });
 
     const data: SchoolLeaderboardEntry[] = rows.map(
@@ -213,7 +252,7 @@ export class UserService {
           user_id: user.id,
           fullname: displayName,
           username: user.username || null,
-          class_name: user.class_name || null,
+          class_name: user.display_class_name || user.class_name || null,
           coins,
           blocked_coins: blocked,
           total_coins: coins + blocked,
@@ -225,10 +264,10 @@ export class UserService {
 
     return {
       data,
-      total: count,
+      total: totalCount,
       page,
       pageSize,
-      totalPages: Math.ceil(count / pageSize),
+      totalPages: Math.ceil(totalCount / pageSize),
     };
   }
   async bulkUpdate(

@@ -10,6 +10,7 @@ import {
   Delete,
   ParseIntPipe,
   Query,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { CoinTransactionsService } from './coin_transactions.service';
 import { CreateCoinTransactionDto } from './dto/create-coin_transaction.dto';
@@ -33,16 +34,14 @@ export class CoinTransactionsController {
     return this.coinTransactionsService.createMany(createCoinTransactionDtos);
   }
 
-  // === YANGI: Shubhali tranzaksiyalarni aniqlash ===
-  @Get('suspicious')
-  async getSuspiciousActivity() {
-    return this.coinTransactionsService.getSuspiciousActivity();
-  }
 
-  // Barcha tranzaksiyalarni olish (ehtiyot bo'ling – ko'p ma'lumot bo'lishi mumkin)
+  // Barcha tranzaksiyalarni olish — PAGINATION bilan
   @Get()
-  findAll() {
-    return this.coinTransactionsService.findAll();
+  findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+  ) {
+    return this.coinTransactionsService.findAll(page, limit);
   }
 
   // === YANGI: Haftalik top 10 tanga ko'paygan talabalar ===
@@ -90,8 +89,12 @@ export class CoinTransactionsController {
   // Foydalanuvchi bo'yicha barcha tranzaksiyalarni olish (eng muhim endpoint!)
   // URL: GET /coin-transactions/user/15
   @Get('user/:user_id')
-  findByUserId(@Param('user_id', ParseIntPipe) user_id: number) {
-    return this.coinTransactionsService.findByUserId(user_id);
+  findByUserId(
+    @Param('user_id', ParseIntPipe) user_id: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number,
+  ) {
+    return this.coinTransactionsService.findByUserId(user_id, page, limit);
   }
 
   // Alternative: query orqali foydalanuvchi tranzaksiyalarini olish

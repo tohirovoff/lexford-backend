@@ -55,9 +55,7 @@ export class CoinTransactionsService {
         await user.update({ coins: newBalance }, { transaction: t });
 
         // Yangilangan qiymatni ko'rish uchun (oldin reload kerak edi)
-        console.log(
-          `DEBUG coins updated: userId=${dto.user_id}, change=${amount}, newBalance=${user.getDataValue('coins')}`,
-        );
+        // Balance yangilandi
 
         // Xabarnoma yuborish
         const isPenalty = dto.type === 'penalty' || dto.amount < 0;
@@ -87,7 +85,6 @@ export class CoinTransactionsService {
 
       return transaction;
     } catch (error) {
-      console.error('Tranzaksiya yaratishdagi asil xato:', error);
       throw new HttpException(
         error.message || 'Coin tranzaksiyasi yaratishda xatolik yuz berdi',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
@@ -117,7 +114,6 @@ export class CoinTransactionsService {
       return results;
     } catch (error) {
       await t.rollback();
-      console.error('Bulk create error:', error);
       throw new HttpException(
         error.message || 'Bir nechta tranzaksiya qo‘shishda xatolik',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
@@ -125,12 +121,22 @@ export class CoinTransactionsService {
     }
   }
 
-  // Barcha tranzaksiyalarni olish (admin uchun)
-  async findAll() {
-    return this.coinTransactionModel.findAll({
+  // Barcha tranzaksiyalarni olish (admin uchun) — PAGINATION bilan
+  async findAll(page: number = 1, limit: number = 50) {
+    const offset = (page - 1) * limit;
+    const { rows, count } = await this.coinTransactionModel.findAndCountAll({
       include: this.getIncludes(),
       order: [['createdAt', 'DESC']],
+      limit,
+      offset,
     });
+    return {
+      data: rows,
+      total: count,
+      page,
+      limit,
+      totalPages: Math.ceil(count / limit),
+    };
   }
 
   // Bitta tranzaksiyani ID bo‘yicha olish
@@ -170,26 +176,35 @@ export class CoinTransactionsService {
     return { message: 'Tranzaksiya muvaffaqiyatli o‘chirildi' };
   }
 
-  // Foydalanuvchi bo‘yicha tranzaksiyalarni olish (faqat o'ziga tegishli!)
-  async findByUserId(user_id: number) {
-    const transactions = await this.coinTransactionModel.findAll({
+  // Foydalanuvchi bo'yicha tranzaksiyalarni olish — LIMIT bilan
+  async findByUserId(user_id: number, page: number = 1, limit: number = 100) {
+    const offset = (page - 1) * limit;
+    const { rows, count } = await this.coinTransactionModel.findAndCountAll({
       where: {
         [Op.or]: [{ user_id }, { created_by: user_id }],
       },
       include: this.getIncludes(),
       order: [['createdAt', 'DESC']],
+      limit,
+      offset,
     });
 
-    // Agar tranzaksiya bo'lmasa, bo'sh array qaytarish yetarli (404 emas)
-    return transactions;
+    return {
+      data: rows,
+      total: count,
+      page,
+      limit,
+      totalPages: Math.ceil(count / limit),
+    };
   }
 
-  // Tur bo‘yicha tranzaksiyalarni olish (reward, penalty, auction_spent va h.k.)
-  async findByType(type: string) {
+  // Tur bo'yicha tranzaksiyalarni olish — LIMIT bilan
+  async findByType(type: string, limit: number = 50) {
     return this.coinTransactionModel.findAll({
       where: { type },
       include: this.getIncludes(),
       order: [['createdAt', 'DESC']],
+      limit,
     });
   }
 
@@ -408,161 +423,6 @@ export class CoinTransactionsService {
       is_current_week: period.isCurrent,
     };
   }
-  // === YANGI: Shubhali tranzaksiyalarni aniqlash ===
-  async getSuspiciousActivity() {
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-    // 1. Bugun eng ko'p tanga ulashganlar (amount > 0 and type = 'reward')
-    const topGiversRows = await this.coinTransactionModel.findAll({
-      attributes: [
-        'created_by',
-        [
-          this.coinTransactionModel.sequelize!.fn(
-            'SUM',
-            this.coinTransactionModel.sequelize!.col('amount'),
-          ),
-          'total_given',
-        ],
-        [
-          this.coinTransactionModel.sequelize!.fn(
-            'COUNT',
-            this.coinTransactionModel.sequelize!.col('id'),
-          ),
-          'transaction_count',
-        ],
-      ],
-      where: {
-        type: 'reward',
-        amount: { [Op.gt]: 0 },
-        created_by: { [Op.not]: null as any },
-        createdAt: { [Op.gte]: today },
-        [Op.or]: [
-          { status: 'approved' },
-          { status: null as any }
-        ]
-      } as any,
-      include: [
-        {
-          model: User,
-          as: 'giver',
-          attributes: ['id', 'fullname', 'username', 'role'],
-        },
-      ],
-      group: ['created_by', 'giver.id'],
-      order: [[this.coinTransactionModel.sequelize!.literal('total_given'), 'DESC']],
-      limit: 10,
-    });
-
-    // 2. Bugun eng ko'p tanga yig'ganlar
-    const topReceiversRows = await this.coinTransactionModel.findAll({
-      attributes: [
-        'user_id',
-        [
-          this.coinTransactionModel.sequelize!.fn(
-            'SUM',
-            this.coinTransactionModel.sequelize!.col('amount'),
-          ),
-          'total_received',
-        ],
-      ],
-      where: {
-        type: 'reward',
-        amount: { [Op.gt]: 0 },
-        createdAt: { [Op.gte]: today },
-        [Op.or]: [
-          { status: 'approved' },
-          { status: null as any }
-        ]
-      } as any,
-      include: [
-        {
-          model: User,
-          as: 'receiver',
-          attributes: ['id', 'fullname', 'username', 'role'],
-        },
-      ],
-      group: ['user_id', 'receiver.id'],
-      order: [[this.coinTransactionModel.sequelize!.literal('total_received'), 'DESC']],
-      limit: 10,
-    });
-
-    // 3. Shubhali takroriy tranzaksiyalar (bitta o'qituvchidan bitta o'quvchiga bugun 3+ marta)
-    const repeatedTransactionsRows = await this.coinTransactionModel.findAll({
-      attributes: [
-        'created_by',
-        'user_id',
-        [
-          this.coinTransactionModel.sequelize!.fn('COUNT', this.coinTransactionModel.sequelize!.col('CoinTransactions.id')),
-          'transfer_count',
-        ],
-        [
-          this.coinTransactionModel.sequelize!.fn('SUM', this.coinTransactionModel.sequelize!.col('amount')),
-          'total_amount',
-        ],
-      ],
-      where: {
-        type: 'reward',
-        amount: { [Op.gt]: 0 },
-        created_by: { [Op.not]: null as any },
-        createdAt: { [Op.gte]: today },
-        [Op.or]: [
-          { status: 'approved' },
-          { status: null as any }
-        ]
-      } as any,
-      include: [
-        {
-          model: User,
-          as: 'giver',
-          attributes: ['id', 'fullname', 'username'],
-        },
-        {
-          model: User,
-          as: 'receiver',
-          attributes: ['id', 'fullname', 'username'],
-        },
-      ],
-      group: ['created_by', 'user_id', 'giver.id', 'receiver.id'],
-      having: this.coinTransactionModel.sequelize!.where(
-        this.coinTransactionModel.sequelize!.fn('COUNT', this.coinTransactionModel.sequelize!.col('CoinTransactions.id')),
-        '>=',
-        3
-      ),
-      order: [[this.coinTransactionModel.sequelize!.literal('transfer_count'), 'DESC']],
-    });
-
-      return {
-        topGivers: topGiversRows.map((item: any) => {
-          const raw = item.get({ plain: true });
-          return {
-            ...raw,
-            total_given: Number(raw.total_given || 0),
-            transaction_count: Number(raw.transaction_count || 0)
-          };
-        }),
-        topReceivers: topReceiversRows.map((item: any) => {
-          const raw = item.get({ plain: true });
-          return {
-            ...raw,
-            total_received: Number(raw.total_received || 0)
-          };
-        }),
-        repeatedTransactions: repeatedTransactionsRows.map((item: any) => {
-          const raw = item.get({ plain: true });
-          return {
-            ...raw,
-            transfer_count: Number(raw.transfer_count || 0),
-            total_amount: Number(raw.total_amount || 0)
-          };
-        }),
-      };
-    } catch (error) {
-      console.error('Error in getSuspiciousActivity:', error);
-      throw error;
-    }
-  }
 
   // === ADMIN uchun: Pending tranzaksiyalar ro'yxati ===
   async getPendingTransactions() {
@@ -712,4 +572,5 @@ export class CoinTransactionsService {
 
     return transaction;
   }
+
 }
