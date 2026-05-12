@@ -43,7 +43,7 @@ export class CoinTransactionsService {
       let status = 'approved';
 
       const transaction = await this.coinTransactionModel.create(
-        { ...dto, status } as any,
+        { ...dto, amount, status } as any,
         { transaction: t }
       );
 
@@ -54,33 +54,35 @@ export class CoinTransactionsService {
         const newBalance = (Number(user.coins) || 0) + Number(amount);
         await user.update({ coins: newBalance }, { transaction: t });
 
-        // Yangilangan qiymatni ko'rish uchun (oldin reload kerak edi)
-        // Balance yangilandi
+        // Xabarnoma yuborish - try catch ichida bo'lishi kerak tranzaksiya to'xtab qolmasligi uchun
+        try {
+          const isPenalty = dto.type === 'penalty' || amount < 0;
+          let title = isPenalty ? 'Jarima' : 'Tangalar qabul qilindi';
+          let message = isPenalty
+            ? `${Math.abs(amount)} tanga miqdorida jarima qo'llanildi. Sabab: ${dto.reason || 'belgilanmagan'}`
+            : `${amount} ta tanga hisobingizga qo'shildi. Sabab: ${dto.reason || 'belgilanmagan'}`;
+          let type = isPenalty ? 'penalty' : 'reward';
 
-        // Xabarnoma yuborish
-        const isPenalty = dto.type === 'penalty' || dto.amount < 0;
-        let title = isPenalty ? 'Jarima' : 'Tangalar qabul qilindi';
-        let message = isPenalty
-          ? `${Math.abs(dto.amount)} tanga miqdorida jarima qo'llanildi. Sabab: ${dto.reason || 'belgilanmagan'}`
-          : `${dto.amount} ta tanga hisobingizga qo'shildi. Sabab: ${dto.reason || 'belgilanmagan'}`;
-        let type = isPenalty ? 'penalty' : 'reward';
+          if (dto.type === 'bid_refund') {
+            title = 'Stavka qaytarildi';
+            message = `Sizning stavkangizdan yuqori stavka qo'yildi. ${amount} ta tanga hisobingizga qaytarildi.`;
+            type = 'auction';
+          } else if (dto.type === 'bid_block') {
+            title = "Stavka qo'yildi";
+            message = `${Math.abs(amount)} ta tanga stavka uchun bloklandi.`;
+            type = 'auction';
+          }
 
-        if (dto.type === 'bid_refund') {
-          title = 'Stavka qaytarildi';
-          message = `Sizning stavkangizdan yuqori stavka qo'yildi. ${dto.amount} ta tanga hisobingizga qaytarildi.`;
-          type = 'auction';
-        } else if (dto.type === 'bid_block') {
-          title = 'Stavka qo\'yildi';
-          message = `${Math.abs(dto.amount)} ta tanga stavka uchun bloklandi.`;
-          type = 'auction';
+          await this.notificationService.create({
+            user_id: dto.user_id,
+            title,
+            message,
+            type,
+          });
+        } catch (notifError) {
+          console.error('Notification creation failed:', notifError);
+          // Tranzaksiyani to'xtatmaymiz, chunki coin qo'shish muhimroq
         }
-
-        await this.notificationService.create({
-          user_id: dto.user_id,
-          title,
-          message,
-          type,
-        });
       }
 
       return transaction;
